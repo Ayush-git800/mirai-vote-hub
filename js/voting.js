@@ -80,20 +80,33 @@ function renderSeatCandidates(category, candidates, container) {
   container.innerHTML = "";
   candidates.forEach(cand => {
     const card = document.createElement("div");
-    card.className = "candidate-card";
+    card.className = `candidate-card ${category}-card`;
     card.dataset.id = cand.id;
     card.dataset.category = category;
 
     const avatarInitial = cand.name ? cand.name.charAt(0).toUpperCase() : "C";
     const photoHtml = cand.photoUrl 
       ? `<img src="${cand.photoUrl}" alt="${cand.name}" class="candidate-avatar">`
-      : `<div class="candidate-avatar">${avatarInitial}</div>`;
+      : `<div class="candidate-avatar ${category}-avatar">${avatarInitial}</div>`;
+
+    const catBadgeText = category === "boy_cr" ? "Category A &bull; Boy CR Nominee" : "Category B &bull; Girl CR Nominee";
+    const catBadgeClass = category === "boy_cr" ? "badge-boy" : "badge-girl";
 
     card.innerHTML = `
-      ${photoHtml}
-      <div class="candidate-name">${cand.name}</div>
-      <div class="candidate-roll">${cand.rollNo || 'Roll: Verified'}</div>
-      <p class="candidate-manifesto">${cand.manifesto || 'Committed to representing CSE AI/ML student cohort interests.'}</p>
+      <div class="card-top-row">
+        <span class="category-badge ${catBadgeClass}">${catBadgeText}</span>
+        <span class="selection-pill">Click to Choose</span>
+      </div>
+      <div class="candidate-profile-row">
+        ${photoHtml}
+        <div class="candidate-meta">
+          <div class="candidate-name">${cand.name}</div>
+          <div class="candidate-roll">${cand.rollNo || 'Roll: Certified'}</div>
+        </div>
+      </div>
+      <div class="candidate-manifesto-box">
+        <p class="candidate-manifesto">${cand.manifesto || 'Committed to representing CSE AI/ML student cohort interests.'}</p>
+      </div>
     `;
 
     card.addEventListener("click", () => handleCandidateSelection(category, cand, card));

@@ -172,6 +172,8 @@ function updateNavForRole() {
 }
 
 function unlockBallotUI(student) {
+  document.getElementById("electionListView")?.classList.add("hidden");
+  document.getElementById("ballotView")?.classList.remove("hidden");
   if (authSection) authSection.classList.add("hidden");
   if (votingSection) votingSection.classList.remove("hidden");
   if (votedSuccessSection) votedSuccessSection.classList.add("hidden");
@@ -186,6 +188,8 @@ function unlockBallotUI(student) {
 }
 
 function showAlreadyVoted(student) {
+  document.getElementById("electionListView")?.classList.add("hidden");
+  document.getElementById("ballotView")?.classList.remove("hidden");
   if (authSection) authSection.classList.add("hidden");
   if (votingSection) votingSection.classList.add("hidden");
   if (votedSuccessSection) votedSuccessSection.classList.remove("hidden");

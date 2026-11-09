@@ -183,53 +183,83 @@ function renderResultsTable(candidates, tbody, winnerPill, seatLabel) {
 // Global Tab Navigation Controller
 function initTabNavigation() {
   const tabs = document.querySelectorAll(".nav-tab");
-  const sections = {
-    ballotTab: [document.getElementById("authSection"), document.getElementById("votingSection"), document.getElementById("votedSuccessSection")],
-    resultsTab: [document.getElementById("resultsSection")],
-    adminTab: [document.getElementById("adminSection")]
-  };
+  const electionListView = document.getElementById("electionListView");
+  const ballotView = document.getElementById("ballotView");
+  const authSection = document.getElementById("authSection");
+  const votingSection = document.getElementById("votingSection");
+  const votedSuccessSection = document.getElementById("votedSuccessSection");
+  const resultsView = document.getElementById("resultsView") || document.getElementById("resultsSection");
+  const adminView = document.getElementById("adminView") || document.getElementById("adminSection");
+
+  function hideAllViews() {
+    electionListView?.classList.add("hidden");
+    ballotView?.classList.add("hidden");
+    authSection?.classList.add("hidden");
+    votingSection?.classList.add("hidden");
+    votedSuccessSection?.classList.add("hidden");
+    resultsView?.classList.add("hidden");
+    adminView?.classList.add("hidden");
+    document.getElementById("resultsSection")?.classList.add("hidden");
+    document.getElementById("adminSection")?.classList.add("hidden");
+  }
+
+  function activateTab(tabKey) {
+    tabs.forEach(t => {
+      if (t.dataset.tab === tabKey) {
+        t.classList.add("active");
+      } else {
+        t.classList.remove("active");
+      }
+    });
+
+    hideAllViews();
+
+    if (tabKey === "electionsTab") {
+      electionListView?.classList.remove("hidden");
+    } else if (tabKey === "resultsTab") {
+      resultsView?.classList.remove("hidden");
+      document.getElementById("resultsSection")?.classList.remove("hidden");
+    } else if (tabKey === "adminTab") {
+      adminView?.classList.remove("hidden");
+      document.getElementById("adminSection")?.classList.remove("hidden");
+      window.dispatchEvent(new CustomEvent("adminTabOpened"));
+    } else {
+      // ballotTab
+      const hasVoted = !votedSuccessSection?.dataset.unvoted && votedSuccessSection?.querySelector(".receipt-hash")?.textContent !== "0x0000000000000000" && !votedSuccessSection?.classList.contains("hidden");
+      const inVoting = !votingSection?.classList.contains("hidden");
+      
+      // Check if student session is active
+      const studentRoll = document.getElementById("ballotRollNo")?.textContent || "";
+      const isStudentVerified = studentRoll && !studentRoll.includes("--");
+
+      if (hasVoted) {
+        ballotView?.classList.remove("hidden");
+        votedSuccessSection?.classList.remove("hidden");
+      } else if (isStudentVerified) {
+        ballotView?.classList.remove("hidden");
+        votingSection?.classList.remove("hidden");
+      } else {
+        authSection?.classList.remove("hidden");
+      }
+    }
+  }
 
   tabs.forEach(tab => {
     tab.addEventListener("click", () => {
-      const targetKey = tab.dataset.tab;
-      
-      // Update tab styles
-      tabs.forEach(t => t.classList.remove("active"));
-      tab.classList.add("active");
-
-      // Hide all main view sections
-      document.getElementById("resultsSection")?.classList.add("hidden");
-      document.getElementById("adminSection")?.classList.add("hidden");
-      
-      if (targetKey === "resultsTab") {
-        document.getElementById("authSection")?.classList.add("hidden");
-        document.getElementById("votingSection")?.classList.add("hidden");
-        document.getElementById("votedSuccessSection")?.classList.add("hidden");
-        document.getElementById("resultsSection")?.classList.remove("hidden");
-      } else if (targetKey === "adminTab") {
-        document.getElementById("authSection")?.classList.add("hidden");
-        document.getElementById("votingSection")?.classList.add("hidden");
-        document.getElementById("votedSuccessSection")?.classList.add("hidden");
-        document.getElementById("adminSection")?.classList.remove("hidden");
-        window.dispatchEvent(new CustomEvent("adminTabOpened"));
-      } else {
-        // Ballot Tab: Return to appropriate ballot state
-        document.getElementById("resultsSection")?.classList.add("hidden");
-        document.getElementById("adminSection")?.classList.add("hidden");
-        
-        // Auth or Voting or Success
-        const hasVoted = !document.getElementById("votedSuccessSection")?.classList.contains("hidden");
-        const inVoting = !document.getElementById("votingSection")?.classList.contains("hidden");
-
-        if (hasVoted) {
-          document.getElementById("votedSuccessSection")?.classList.remove("hidden");
-        } else if (inVoting) {
-          document.getElementById("votingSection")?.classList.remove("hidden");
-        } else {
-          document.getElementById("authSection")?.classList.remove("hidden");
-        }
-      }
+      activateTab(tab.dataset.tab);
     });
+  });
+
+  // Connect "Enter Voting Booth" buttons from Active Elections cards
+  document.querySelectorAll(".enter-election-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      activateTab("ballotTab");
+    });
+  });
+
+  // Brand click returns to Active Elections
+  document.getElementById("navBrandIdentity")?.addEventListener("click", () => {
+    activateTab("electionsTab");
   });
 }
 

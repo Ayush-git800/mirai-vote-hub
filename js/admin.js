@@ -38,39 +38,75 @@ const addCandidateForm = document.getElementById("addCandidateForm");
 const adminBoyCandidateList = document.getElementById("adminBoyCandidateList");
 const adminGirlCandidateList = document.getElementById("adminGirlCandidateList");
 
-// Parse CSV Text to Voter Objects
-function parseCSVToVoters(csvText) {
-  const lines = csvText.trim().split("\n");
-  if (lines.length <= 1) return [];
+// Parse Raw Voter Input (supports 120+ raw roll numbers, CSV, or JSON)
+export function parseRawVoterInput(rawText) {
+  const trimmed = rawText.trim();
+  if (!trimmed) return [];
 
-  const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
+  // Check if JSON
+  if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      return Array.isArray(parsed) ? parsed : [parsed];
+    } catch (e) {
+      console.warn("JSON parse attempt failed, falling back to line parser", e);
+    }
+  }
+
+  // Check if lines
+  const rawLines = trimmed.split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
+  if (rawLines.length === 0) return [];
+
+  // Check if first line is a CSV header
+  const firstLine = rawLines[0].toLowerCase();
+  const isCSVHeader = firstLine.includes("roll") || firstLine.includes("name") || firstLine.includes("email");
+
   const voters = [];
+  const startIndex = isCSVHeader ? 1 : 0;
 
-  for (let i = 1; i < lines.length; i++) {
-    const row = lines[i].split(",").map(cell => cell.trim());
-    if (row.length === 0 || !row[0]) continue;
-
-    const voter = {};
-    headers.forEach((head, idx) => {
-      voter[head] = row[idx] || "";
-    });
-
-    // Normalize rollNo
-    const rollNo = (voter.rollno || voter.roll_no || voter.id || row[0] || "").toUpperCase();
-    if (rollNo) {
-      voters.push({
-        rollNo: rollNo,
-        name: voter.name || `Student ${rollNo}`,
-        email: voter.email || `${rollNo.toLowerCase()}@mirai.ac.in`,
-        dept: voter.dept || voter.department || "CSE (AI/ML)",
-        passkey: voter.passkey || voter.pin || "MIRAI2026",
-        hasVoted: false,
-        claimed: false
+  for (let i = startIndex; i < rawLines.length; i++) {
+    const line = rawLines[i];
+    if (line.includes(",")) {
+      // CSV format
+      const parts = line.split(",").map(p => p.trim());
+      const roll = (parts[0] || "").toUpperCase();
+      if (roll) {
+        voters.push({
+          rollNo: roll,
+          name: parts[1] || `Student ${roll}`,
+          email: parts[2] || `${roll.toLowerCase()}@mirai.ac.in`,
+          dept: parts[3] || "CSE (AI/ML)",
+          passkey: parts[4] || "MIRAI2026",
+          hasVoted: false,
+          claimed: false
+        });
+      }
+    } else {
+      // Single roll number per line or space/tab separated
+      const tokens = line.split(/\s+/).filter(Boolean);
+      tokens.forEach(tok => {
+        const roll = tok.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+        if (roll && roll.length >= 4) {
+          voters.push({
+            rollNo: roll,
+            name: `Student ${roll}`,
+            email: `${roll.toLowerCase()}@mirai.ac.in`,
+            dept: "CSE (AI/ML)",
+            passkey: "MIRAI2026",
+            hasVoted: false,
+            claimed: false
+          });
+        }
       });
     }
   }
 
   return voters;
+}
+
+// Parse CSV Text to Voter Objects
+function parseCSVToVoters(csvText) {
+  return parseRawVoterInput(csvText);
 }
 
 // Batch Ingest Whitelist
@@ -342,15 +378,87 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Lifecycle buttons
-  if (stateReadyBtn) stateReadyBtn.addEventListener("click", () => updateElectionState("ready"));
-  if (stateActiveBtn) stateActiveBtn.addEventListener("click", () => updateElectionState("active"));
-  if (statePausedBtn) statePausedBtn.addEventListener("click", () => updateElectionState("paused"));
-  if (stateConcludedBtn) stateConcludedBtn.addEventListener("click", () => updateElectionState("concluded"));
+  // Process Whitelist Batch Button (up to 120+ student IDs)
+  const processWhitelistBtn = document.getElementById("processWhitelistBtn");
+  const whitelistBatchTextarea = document.getElementById("whitelistBatchTextarea");
+  if (processWhitelistBtn && whitelistBatchTextarea) {
+    processWhitelistBtn.addEventListener("click", () => {
+      const raw = whitelistBatchTextarea.value.trim();
+      if (!raw) {
+        showAlert("Please paste student IDs or CSV roster into the box.", "error");
+        return;
+      }
+      const voters = parseRawVoterInput(raw);
+      batchImportWhitelist(voters);
+    });
+  }
 
-  // Reveal buttons
-  if (stage1Btn) stage1Btn.addEventListener("click", () => updateRevealStage(1));
-  if (stage2Btn) stage2Btn.addEventListener("click", () => updateRevealStage(2));
+  // Create Election Form
+  const createElectionForm = document.getElementById("createElectionForm");
+  if (createElectionForm) {
+    createElectionForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const title = document.getElementById("newElectionTitle")?.value.trim();
+      const dept = document.getElementById("newElectionDept")?.value.trim();
+      const section = document.getElementById("newElectionSection")?.value.trim();
+
+      if (!title) {
+        showAlert("Election title is required.", "error");
+        return;
+      }
+
+      try {
+        const metaRef = doc(db, "election_meta", "config");
+        await setDoc(metaRef, {
+          title: title,
+          dept: dept,
+          section: section,
+          status: "active",
+          revealStage: 1,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+
+        showAlert(`Election '${title}' registered successfully!`, "success");
+        // Update header label
+        const statusLabel = document.getElementById("electionStatusLabel");
+        if (statusLabel) statusLabel.textContent = "Election Active";
+      } catch (err) {
+        showAlert(`Failed to create election: ${err.message}`, "error");
+      }
+    });
+  }
+
+  // Admin Candidate Registry Form
+  const adminCandidateRegistryForm = document.getElementById("adminCandidateRegistryForm");
+  if (adminCandidateRegistryForm) {
+    adminCandidateRegistryForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const cat = document.getElementById("adminCandCategory").value;
+      const name = document.getElementById("adminCandName").value.trim();
+      const roll = document.getElementById("adminCandRoll").value.trim();
+      const manifesto = document.getElementById("adminCandManifesto").value.trim();
+      const photo = document.getElementById("adminCandPhoto").value.trim();
+
+      if (!name || !roll) {
+        showAlert("Candidate name and roll number are mandatory.", "error");
+        return;
+      }
+
+      registerCandidate(cat, name, roll, manifesto, photo);
+      adminCandidateRegistryForm.reset();
+    });
+  }
+
+  // New Lifecycle buttons
+  const lifecycleDraftBtn = document.getElementById("lifecycleDraftBtn");
+  const lifecycleActiveBtn = document.getElementById("lifecycleActiveBtn");
+  const lifecycleConcludedBtn = document.getElementById("lifecycleConcludedBtn");
+  const lifecyclePublishBtn = document.getElementById("lifecyclePublishBtn");
+
+  if (lifecycleDraftBtn) lifecycleDraftBtn.addEventListener("click", () => updateElectionState("ready"));
+  if (lifecycleActiveBtn) lifecycleActiveBtn.addEventListener("click", () => updateElectionState("active"));
+  if (lifecycleConcludedBtn) lifecycleConcludedBtn.addEventListener("click", () => updateElectionState("concluded"));
+  if (lifecyclePublishBtn) lifecyclePublishBtn.addEventListener("click", () => updateRevealStage(2));
 
   // Purge button
   if (purgeElectionDataBtn) purgeElectionDataBtn.addEventListener("click", purgeElectionVotes);
