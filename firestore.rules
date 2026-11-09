@@ -25,6 +25,28 @@ service cloud.firestore {
       allow write: if isAuthenticated();
     }
 
+    // Registered user profiles and credentials
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Multi-tenant elections and nested subcollections
+    match /elections/{electionId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+
+      match /whitelist/{studentId} {
+        allow read: if isAuthenticated();
+        allow write: if isAuthenticated();
+      }
+
+      match /candidates/{candidateId} {
+        allow read: if isAuthenticated();
+        allow write: if isAuthenticated();
+      }
+    }
+
     // Candidates collection: Contestants for Boy CR and Girl CR
     match /candidates/{candidateId} {
       // Anyone authenticated can read candidates to render ballots

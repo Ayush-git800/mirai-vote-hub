@@ -214,6 +214,14 @@ export async function executeAtomicVote() {
         receiptHash: receiptToken
       });
 
+      // Synchronize election subcollection whitelist
+      const electionWhitelistRef = doc(db, "elections", "cse-aiml-a", "whitelist", rollNo);
+      transaction.set(electionWhitelistRef, {
+        hasVoted: true,
+        votedAt: serverTimestamp(),
+        receiptHash: receiptToken
+      }, { merge: true });
+
       // 4. Decoupled Anonymous Ballot Record (Ballot Secrecy Guarantee)
       // Generates an independent UUID/hash doc in votes collection WITHOUT student rollNo
       const anonymousVoteRef = doc(collection(db, "votes"));
@@ -231,7 +239,27 @@ export async function executeAtomicVote() {
       transaction.update(girlRef, {
         voteCount: increment(1)
       });
+
+      const electionBoyRef = doc(db, "elections", "cse-aiml-a", "candidates", boyCandidateId);
+      const electionGirlRef = doc(db, "elections", "cse-aiml-a", "candidates", girlCandidateId);
+      transaction.set(electionBoyRef, { voteCount: increment(1) }, { merge: true });
+      transaction.set(electionGirlRef, { voteCount: increment(1) }, { merge: true });
     });
+
+    // Update local state and session
+    if (state.studentData) {
+      state.studentData.hasVoted = true;
+      state.studentData.receiptHash = receiptToken;
+    }
+    const currentSession = localStorage.getItem("mirai_vote_session");
+    if (currentSession) {
+      try {
+        const s = JSON.parse(currentSession);
+        s.hasVoted = true;
+        s.receiptHash = receiptToken;
+        localStorage.setItem("mirai_vote_session", JSON.stringify(s));
+      } catch (e) {}
+    }
 
     // Transaction succeeded!
     closeReviewModal();

@@ -490,6 +490,13 @@ p {
   flex-direction: column;
 }
 
+.election-eligibility-spec {
+  grid-column: span 2;
+  border-top: 1px dashed var(--border-subtle);
+  padding-top: 0.6rem;
+  margin-top: 0.35rem;
+}
+
 .spec-label {
   font-size: 0.7rem;
   text-transform: uppercase;
