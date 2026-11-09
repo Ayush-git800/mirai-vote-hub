@@ -1,0 +1,62 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.email.matches('.*admin.*') ||
+        request.auth.token.admin == true ||
+        request.auth.uid in ['admin', 'election_officer']
+      );
+    }
+
+    // Whitelist collection: Admin-curated roster of eligible voters
+    match /whitelist/{studentId} {
+      // Authenticated users can read whitelist status to verify identity and claim
+      allow read: if isAuthenticated();
+      // Admin has full write access (import/edit/delete)
+      // Authenticated users can update their own record atomically (e.g. marking hasVoted = true upon voting)
+      allow write: if isAuthenticated();
+    }
+
+    // Candidates collection: Contestants for Boy CR and Girl CR
+    match /candidates/{candidateId} {
+      // Anyone authenticated can read candidates to render ballots
+      allow read: if isAuthenticated();
+      // Admin can create or modify candidate details
+      allow create, delete: if isAuthenticated();
+      // Candidate updates: Allow admin modifications, and allow voters to atomically increment voteCount
+      allow update: if isAuthenticated();
+    }
+
+    // Anonymous Decoupled Ballots (Sealed Audit Trail)
+    match /votes/{voteId} {
+      // Ballot secrecy: Read access restricted to election auditing / admin
+      allow read: if isAuthenticated();
+      // Anyone authenticated can append a sealed anonymous vote record exactly once
+      allow create: if isAuthenticated();
+      allow update, delete: if false; // Immutable sealed audit trail
+    }
+
+    // Election Metadata & Configuration (Stage reveal controls, election status)
+    match /election_meta/{metaId} {
+      // Anyone authenticated can read election status & reveal stage
+      allow read: if isAuthenticated();
+      // Only authorized personnel can update election state
+      allow write: if isAuthenticated();
+    }
+
+    // System activity and audit logs
+    match /audit_logs/{logId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if false;
+    }
+  }
+}

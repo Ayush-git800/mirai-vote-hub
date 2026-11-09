@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mirai Vote Hub | Mirai School of Technology - CSE AI/ML</title>
+  <meta name="description" content="Official Multi-Tenant Election Voting Portal for Mirai School of Technology - Department of CSE (AI & ML)">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" type="image/png" href="assets/logo.png">
+</head>
+<body>
+  <!-- Global Application Wrapper -->
+  <div id="app">
+    <!-- Institutional Top Navigation -->
+    <header class="app-header">
+      <div class="header-container">
+        <div class="brand-group">
+          <img src="assets/logo.png" alt="Mirai School of Technology Logo" class="brand-logo" id="headerLogo">
+          <div class="brand-text">
+            <span class="institution-name">MIRAI SCHOOL OF TECHNOLOGY</span>
+            <div class="sub-brand">
+              <span class="dept-badge">CSE (AI &amp; ML)</span>
+              <span class="portal-title">Vote Hub</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="header-center">
+          <div class="election-status-pill" id="electionStatusPill">
+            <span class="status-dot pulsing"></span>
+            <span class="status-label" id="electionStatusLabel">Election In Progress</span>
+          </div>
+        </div>
+
+        <div class="header-actions">
+          <div id="userProfile" class="user-profile-badge hidden">
+            <div class="user-meta">
+              <span class="user-name" id="userDisplayName">Student</span>
+              <span class="user-role-badge" id="userRoleBadge">Voter</span>
+            </div>
+            <button id="logoutBtn" class="btn btn-secondary btn-sm" title="Sign Out">Sign Out</button>
+          </div>
+          <button id="adminToggleBtn" class="btn btn-outline btn-sm">Admin Access</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="app-nav">
+      <div class="nav-container">
+        <button class="nav-tab active" data-tab="ballotTab" id="tabBallotBtn">
+          <span class="tab-icon">🗳️</span>
+          <span>Ballot Booth</span>
+        </button>
+        <button class="nav-tab" data-tab="resultsTab" id="tabResultsBtn">
+          <span class="tab-icon">📊</span>
+          <span>Live Telemetry &amp; Results</span>
+        </button>
+        <button class="nav-tab admin-only hidden" data-tab="adminTab" id="tabAdminBtn">
+          <span class="tab-icon">⚙️</span>
+          <span>Election Control Terminal</span>
+        </button>
+      </div>
+    </nav>
+
+    <!-- Main Content Container -->
+    <main class="app-main">
+      <!-- Notification Banner (Alerts, Warnings) -->
+      <div id="alertBanner" class="alert-banner hidden">
+        <span class="alert-icon">ℹ️</span>
+        <span class="alert-message" id="alertMessage">Notification text here.</span>
+        <button class="alert-dismiss" id="alertDismiss">&times;</button>
+      </div>
+
+      <!-- Authentication & Identity Claim Gate -->
+      <section id="authSection" class="auth-section">
+        <div class="auth-card">
+          <div class="auth-card-header">
+            <div class="auth-badge">CSE AI/ML Official Portal</div>
+            <h2>Student Identity Verification</h2>
+            <p>Enter your official university Roll Number or Student ID to claim your decoupled digital ballot.</p>
+          </div>
+
+          <form id="studentClaimForm" class="auth-form">
+            <div class="form-group">
+              <label for="studentRollInput">University Roll Number / Student ID</label>
+              <div class="input-prefix-wrapper">
+                <span class="input-icon">🎓</span>
+                <input 
+                  type="text" 
+                  id="studentRollInput" 
+                  placeholder="e.g. 23AIML042 or 2023CSE015" 
+                  autocomplete="off" 
+                  required
+                >
+              </div>
+              <small class="form-hint">Must match your verified institutional record in the Department Whitelist.</small>
+            </div>
+
+            <div class="form-group">
+              <label for="studentPassInput">Access Passkey / PIN</label>
+              <div class="input-prefix-wrapper">
+                <span class="input-icon">🔑</span>
+                <input 
+                  type="password" 
+                  id="studentPassInput" 
+                  placeholder="Provided security passkey" 
+                  required
+                >
+              </div>
+            </div>
+
+            <button type="submit" id="claimBallotBtn" class="btn btn-primary btn-block">
+              <span class="btn-text">Verify Whitelist &amp; Unlock Ballot</span>
+              <span class="spinner hidden" id="claimSpinner"></span>
+            </button>
+          </form>
+
+          <div class="security-guarantee-box">
+            <div class="security-item">
+              <span class="sec-icon">🔒</span>
+              <div>
+                <strong>Ballot Secrecy Decoupling</strong>
+                <p>Your voter identity check and submitted ballot token are cryptographically segregated.</p>
+              </div>
+            </div>
+            <div class="security-item">
+              <span class="sec-icon">⚡</span>
+              <div>
+                <strong>Atomic Single-Vote Guarantee</strong>
+                <p>Cloud Firestore atomic transaction ensures zero duplicate vote submissions.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Active Voting Ballot Section (Dual Seat: 1 Boy CR + 1 Girl CR) -->
+      <section id="votingSection" class="voting-section hidden">
+        <div class="section-header">
+          <div class="header-left">
+            <span class="section-tag">OFFICIAL BALLOT</span>
+            <h2>Class Representative (CR) Election 2026-27</h2>
+            <p class="section-desc">Department of Computer Science &amp; Engineering (Artificial Intelligence &amp; Machine Learning)</p>
+          </div>
+          <div class="voter-status-card" id="voterStatusCard">
+            <div class="status-indicator">
+              <span class="pulse-green"></span>
+              <span class="status-title">Eligible Voter</span>
+            </div>
+            <div class="voter-details">
+              <span id="ballotRollNo">Roll: --</span> &bull; 
+              <span id="ballotDept">Dept: CSE (AI/ML)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ballot Dual Seat Selection Container -->
+        <form id="ballotForm" class="ballot-container">
+          <!-- Seat 1: Boy Class Representative -->
+          <div class="ballot-seat-card" id="boySeatContainer">
+            <div class="seat-card-header">
+              <div class="seat-title-group">
+                <span class="seat-number">SEAT 01</span>
+                <h3>Boy Class Representative (CR)</h3>
+              </div>
+              <span class="seat-badge required">Mandatory &bull; Select Exactly 1</span>
+            </div>
+            <p class="seat-instructions">Review candidates and select one candidate or NOTA to represent the cohort.</p>
+
+            <div class="candidates-grid" id="boyCandidatesGrid">
+              <!-- Dynamically populated candidate cards -->
+              <div class="loading-placeholder">Loading certified Boy CR candidates...</div>
+            </div>
+          </div>
+
+          <!-- Seat 2: Girl Class Representative -->
+          <div class="ballot-seat-card" id="girlSeatContainer">
+            <div class="seat-card-header">
+              <div class="seat-title-group">
+                <span class="seat-number">SEAT 02</span>
+                <h3>Girl Class Representative (CR)</h3>
+              </div>
+              <span class="seat-badge required">Mandatory &bull; Select Exactly 1</span>
+            </div>
+            <p class="seat-instructions">Review candidates and select one candidate or NOTA to represent the cohort.</p>
+
+            <div class="candidates-grid" id="girlCandidatesGrid">
+              <!-- Dynamically populated candidate cards -->
+              <div class="loading-placeholder">Loading certified Girl CR candidates...</div>
+            </div>
+          </div>
+
+          <!-- Submission Control Bar -->
+          <div class="ballot-submit-bar">
+            <div class="selection-summary" id="selectionSummary">
+              <div class="summary-item">
+                <span class="summary-label">Boy CR Selection:</span>
+                <span class="summary-value" id="summaryBoyChoice">None selected</span>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">Girl CR Selection:</span>
+                <span class="summary-value" id="summaryGirlChoice">None selected</span>
+              </div>
+            </div>
+            <button type="button" id="reviewVoteBtn" class="btn btn-primary btn-lg" disabled>
+              Review &amp; Cast Sealed Ballot 🗳️
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Already Voted / Post-Vote Confirmation View -->
+      <section id="votedSuccessSection" class="voted-section hidden">
+        <div class="success-card">
+          <div class="success-icon-badge">✅</div>
+          <h2>Ballot Sealed &amp; Recorded</h2>
+          <p class="success-subtitle">Your vote has been committed atomically to the tamper-proof ledger.</p>
+          
+          <div class="receipt-box">
+            <div class="receipt-row">
+              <span>Timestamp:</span>
+              <span class="mono" id="receiptTimestamp">--</span>
+            </div>
+            <div class="receipt-row">
+              <span>Voter Status:</span>
+              <span class="badge badge-success">Ballot Cast &bull; Decoupled</span>
+            </div>
+            <div class="receipt-row">
+              <span>Verification Token:</span>
+              <span class="mono receipt-hash" id="receiptHash">0x0000000000000000</span>
+            </div>
+          </div>
+
+          <div class="post-vote-actions">
+            <button class="btn btn-outline" id="viewTurnoutBtn">View Live Election Telemetry</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Live Telemetry & 2-Stage Results Section -->
+      <section id="resultsSection" class="results-section hidden">
+        <div class="section-header">
+          <div class="header-left">
+            <span class="section-tag">OFFICIAL AUDITING</span>
+            <h2>Election Telemetry &amp; Certified Results</h2>
+            <p class="section-desc">Mirai School of Technology &bull; CSE AI/ML Representative Election</p>
+          </div>
+          <div class="stage-indicator-pill" id="stageIndicatorPill">
+            <span id="currentStageText">Stage 1: Live Turnout Telemetry</span>
+          </div>
+        </div>
+
+        <!-- Stage 1: Turnout Meter Dashboard -->
+        <div class="results-grid">
+          <div class="telemetry-card">
+            <div class="telemetry-header">
+              <span class="metric-title">Voter Turnout</span>
+              <span class="metric-percentage" id="turnoutPercentage">0%</span>
+            </div>
+            <div class="progress-bar-container">
+              <div class="progress-bar-fill" id="turnoutProgressBar" style="width: 0%;"></div>
+            </div>
+            <div class="telemetry-stats">
+              <div class="stat-col">
+                <span class="stat-num" id="statVotesCast">0</span>
+                <span class="stat-lbl">Votes Cast</span>
+              </div>
+              <div class="stat-col">
+                <span class="stat-num" id="statTotalVoters">0</span>
+                <span class="stat-lbl">Whitelisted Eligible Voters</span>
+              </div>
+              <div class="stat-col">
+                <span class="stat-num" id="statTurnoutRemaining">0</span>
+                <span class="stat-lbl">Pending Voters</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stage 2: Final Candidate Results (Gated by 2-Stage Reveal Controls) -->
+        <div id="sealedResultsNotice" class="sealed-card">
+          <div class="sealed-icon">🔒</div>
+          <h3>Candidate Vote Breakdown is Currently Sealed</h3>
+          <p>As per the Mirai Election Protocol, candidate tallies remain cryptographically sealed until polls close and the Election Commission unseals Stage 2 results.</p>
+          <div class="stage-steps">
+            <div class="step-item active">
+              <div class="step-num">1</div>
+              <div class="step-label">Live Turnout (Active)</div>
+            </div>
+            <div class="step-line"></div>
+            <div class="step-item">
+              <div class="step-num">2</div>
+              <div class="step-label">Full Certified Reveal (Sealed)</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="unsealedResultsContainer" class="unsealed-results hidden">
+          <!-- Boy CR Certified Results -->
+          <div class="result-category-block">
+            <div class="cat-header">
+              <h3>🏆 Certified Result: Boy Class Representative</h3>
+              <span class="winner-pill" id="boyWinnerPill">Awaiting Certification</span>
+            </div>
+            <div class="results-table-container">
+              <table class="results-table" id="boyResultsTable">
+                <thead>
+                  <tr>
+                    <th>Candidate</th>
+                    <th>Roll Number</th>
+                    <th>Votes</th>
+                    <th>Percentage</th>
+                    <th>Standing</th>
+                  </tr>
+                </thead>
+                <tbody id="boyResultsBody">
+                  <!-- Populated dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Girl CR Certified Results -->
+          <div class="result-category-block">
+            <div class="cat-header">
+              <h3>🏆 Certified Result: Girl Class Representative</h3>
+              <span class="winner-pill" id="girlWinnerPill">Awaiting Certification</span>
+            </div>
+            <div class="results-table-container">
+              <table class="results-table" id="girlResultsTable">
+                <thead>
+                  <tr>
+                    <th>Candidate</th>
+                    <th>Roll Number</th>
+                    <th>Votes</th>
+                    <th>Percentage</th>
+                    <th>Standing</th>
+                  </tr>
+                </thead>
+                <tbody id="girlResultsBody">
+                  <!-- Populated dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Admin Control Terminal Section -->
+      <section id="adminSection" class="admin-section hidden">
+        <div class="section-header">
+          <div class="header-left">
+            <span class="section-tag admin-tag">ADMIN CONTROL TERMINAL</span>
+            <h2>Election Commission Dashboard</h2>
+            <p class="section-desc">Manage whitelist, configure certified candidates, and control 2-stage reveal</p>
+          </div>
+        </div>
+
+        <div class="admin-grid">
+          <!-- Control Module: Whitelist Ingestion -->
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <h3>📋 Whitelist Ingestion (Zero Dummy Data)</h3>
+              <span class="card-badge">Batch Import</span>
+            </div>
+            <p class="admin-help-text">Upload or paste official student roster (Roll Number, Name, Email, Dept). Replaces dummy data with zero-tolerance validation.</p>
+            
+            <div class="file-drop-zone" id="whitelistDropZone">
+              <input type="file" id="whitelistFileInput" accept=".csv,.json" class="file-input-hidden">
+              <div class="drop-zone-content">
+                <span class="upload-icon">📂</span>
+                <span>Drop CSV or click to browse</span>
+                <small>Format: rollNo, name, email, department</small>
+              </div>
+            </div>
+
+            <div class="form-group mt-3">
+              <label for="whitelistJsonText">Or Paste JSON / CSV Raw Data</label>
+              <textarea id="whitelistJsonText" rows="4" class="form-textarea mono" placeholder='[{"rollNo":"23AIML001","name":"Student Name","email":"student@mirai.ac.in","dept":"CSE AI/ML"}]'></textarea>
+            </div>
+
+            <button id="importWhitelistBtn" class="btn btn-primary btn-block">
+              Commit Whitelist to Firestore
+            </button>
+            <div id="whitelistImportStatus" class="import-status mt-2"></div>
+          </div>
+
+          <!-- Control Module: Election Lifecycle & 2-Stage Reveal -->
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <h3>⚡ Lifecycle &amp; Reveal Protocol</h3>
+              <span class="card-badge">Master Control</span>
+            </div>
+            
+            <div class="control-group">
+              <label>Election Operational State</label>
+              <div class="btn-group">
+                <button class="btn btn-outline state-btn" data-state="ready" id="stateReadyBtn">Ready</button>
+                <button class="btn btn-outline state-btn" data-state="active" id="stateActiveBtn">Active (Voting Live)</button>
+                <button class="btn btn-outline state-btn" data-state="paused" id="statePausedBtn">Paused</button>
+                <button class="btn btn-outline state-btn" data-state="concluded" id="stateConcludedBtn">Concluded</button>
+              </div>
+            </div>
+
+            <div class="control-group mt-4">
+              <label>Auditing &amp; Reveal Gating</label>
+              <div class="btn-group">
+                <button class="btn btn-outline reveal-btn" data-stage="1" id="stage1Btn">Stage 1: Turnout Only</button>
+                <button class="btn btn-outline reveal-btn" data-stage="2" id="stage2Btn">Stage 2: Full Unsealed Results</button>
+              </div>
+              <small class="form-hint">Stage 2 unseals individual candidate tallies and computes the certified winner.</small>
+            </div>
+
+            <div class="control-group mt-4 danger-zone">
+              <label class="danger-title">Emergency &amp; Commission Operations</label>
+              <button id="purgeElectionDataBtn" class="btn btn-danger btn-sm">
+                Reset Election Ballot Ledger
+              </button>
+            </div>
+          </div>
+
+          <!-- Control Module: Candidate Management -->
+          <div class="admin-card col-span-2">
+            <div class="admin-card-header">
+              <h3>👥 Certified Candidate Management</h3>
+              <button id="openAddCandidateModalBtn" class="btn btn-secondary btn-sm">+ Add Candidate</button>
+            </div>
+            
+            <div class="candidate-management-tables">
+              <div class="candidate-table-wrapper">
+                <h4>Boy CR Contestants</h4>
+                <div id="adminBoyCandidateList" class="admin-candidate-list">
+                  <!-- Populated dynamically -->
+                </div>
+              </div>
+
+              <div class="candidate-table-wrapper">
+                <h4>Girl CR Contestants</h4>
+                <div id="adminGirlCandidateList" class="admin-candidate-list">
+                  <!-- Populated dynamically -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Modal: Confirmation & Double-Vote Warning Dialog -->
+    <div id="confirmVoteModal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>Confirm Sealed Ballot Submission</h3>
+          <button class="modal-close" id="closeConfirmModalBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-alert-box">
+            ⚠️ <strong>Irreversible Action:</strong> Once confirmed, your ballot is submitted atomically. You cannot vote again or modify your selections.
+          </p>
+          <div class="modal-selections-review">
+            <div class="review-block">
+              <span class="review-label">Boy Class Representative:</span>
+              <strong id="modalConfirmBoy" class="review-name">--</strong>
+            </div>
+            <div class="review-block">
+              <span class="review-label">Girl Class Representative:</span>
+              <strong id="modalConfirmGirl" class="review-name">--</strong>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" id="cancelVoteBtn">Modify Selection</button>
+          <button class="btn btn-primary" id="finalSubmitVoteBtn">
+            <span>Confirm &amp; Seal Ballot</span>
+            <span class="spinner hidden" id="submitSpinner"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Admin Authentication Modal -->
+    <div id="adminLoginModal" class="modal-overlay hidden">
+      <div class="modal-card modal-sm">
+        <div class="modal-header">
+          <h3>Admin Officer Authentication</h3>
+          <button class="modal-close" id="closeAdminLoginModal">&times;</button>
+        </div>
+        <form id="adminLoginForm" class="modal-body">
+          <div class="form-group">
+            <label for="adminEmailInput">Officer Email / UID</label>
+            <input type="text" id="adminEmailInput" placeholder="admin@mirai.ac.in" required>
+          </div>
+          <div class="form-group">
+            <label for="adminPasswordInput">Security Key</label>
+            <input type="password" id="adminPasswordInput" placeholder="Officer Master Key" required>
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-primary btn-block">Authenticate Officer</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal: Add Candidate Modal -->
+    <div id="addCandidateModal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>Register Certified Candidate</h3>
+          <button class="modal-close" id="closeCandidateModalBtn">&times;</button>
+        </div>
+        <form id="addCandidateForm" class="modal-body">
+          <div class="form-group">
+            <label for="candCategorySelect">Contesting Seat</label>
+            <select id="candCategorySelect" required>
+              <option value="boy_cr">Boy Class Representative (CR)</option>
+              <option value="girl_cr">Girl Class Representative (CR)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="candNameInput">Candidate Full Name</label>
+            <input type="text" id="candNameInput" placeholder="e.g. Aarav Sharma" required>
+          </div>
+          <div class="form-group">
+            <label for="candRollInput">Candidate Roll Number</label>
+            <input type="text" id="candRollInput" placeholder="e.g. 23AIML012" required>
+          </div>
+          <div class="form-group">
+            <label for="candManifestoInput">Key Manifesto / Vision Statement</label>
+            <textarea id="candManifestoInput" rows="3" placeholder="Core agenda points for class representation..."></textarea>
+          </div>
+          <div class="form-group">
+            <label for="candPhotoInput">Photo URL (Optional)</label>
+            <input type="url" id="candPhotoInput" placeholder="https://...">
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline" id="cancelCandidateBtn">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Candidate</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Institutional Footer -->
+    <footer class="app-footer">
+      <div class="footer-container">
+        <div class="footer-left">
+          <span>&copy; 2026 Mirai School of Technology &bull; Department of CSE (AI &amp; ML)</span>
+        </div>
+        <div class="footer-right">
+          <span>Mirai Vote Hub v1.0 &bull; Cryptographic Decoupled Ballot Architecture</span>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Application Modules -->
+  <script type="module" src="js/firebase-config.js"></script>
+  <script type="module" src="js/auth.js"></script>
+  <script type="module" src="js/voting.js"></script>
+  <script type="module" src="js/results.js"></script>
+  <script type="module" src="js/admin.js"></script>
+</body>
+</html>
