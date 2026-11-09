@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mirai Vote Hub | CSE AI/ML Election Portal</title>
-  <meta name="description" content="Official Multi-Tenant Election Voting Portal for Mirai School of Technology - Department of CSE (AI & ML)">
+  <title>Mirai Vote Hub | Official Election Portal</title>
+  <meta name="description" content="Official Multi-Tenant Election Voting Portal for Mirai School of Technology">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -83,8 +83,8 @@
         <div class="section-header">
           <div class="header-left">
             <span class="section-tag neon-cyan">CAMPUS DEMOCRACY</span>
-            <h2>Active Department Elections</h2>
-            <p class="section-desc">Department of Computer Science &amp; Engineering (Artificial Intelligence &amp; Machine Learning)</p>
+            <h2>Active Elections</h2>
+            <p class="section-desc">Mirai School of Technology &bull; Official CR Elections</p>
           </div>
           <div class="header-stats-pill">
             <span class="pill-number">1</span>
@@ -93,7 +93,7 @@
         </div>
 
         <div class="elections-grid" id="electionsGrid">
-          <!-- Featured Election Card: CSE AI/ML Section A -->
+          <!-- Featured Election Card: Section A -->
           <div class="election-card active-card">
             <div class="election-card-header">
               <span class="election-badge live-pulse">● Voting Live</span>
@@ -101,14 +101,10 @@
             </div>
 
             <div class="election-card-body">
-              <h3 class="election-title">CSE AI/ML Section A - CR Election 2026</h3>
+              <h3 class="election-title">Section A - CR Election 2026</h3>
               <p class="election-summary">Official cohort voting for 1 Boy Class Representative and 1 Girl Class Representative.</p>
 
               <div class="election-meta-specs">
-                <div class="meta-spec-item">
-                  <span class="spec-label">Department</span>
-                  <span class="spec-value">CSE (AI &amp; ML)</span>
-                </div>
                 <div class="meta-spec-item">
                   <span class="spec-label">Section</span>
                   <span class="spec-value">Section A (2026–27)</span>
@@ -121,17 +117,21 @@
                   <span class="spec-label">Integrity</span>
                   <span class="spec-value">Atomic Concurrency Lock</span>
                 </div>
+                <div class="meta-spec-item">
+                  <span class="spec-label">Ballot Type</span>
+                  <span class="spec-value">Decoupled Anonymous</span>
+                </div>
               </div>
             </div>
 
             <div class="election-card-footer">
-              <button class="btn btn-cyber-primary btn-block enter-election-btn" data-election-id="cse-aiml-a">
+              <button class="btn btn-cyber-primary btn-block enter-election-btn" data-election-id="section-a">
                 <span>Enter Voting Booth 🗳️</span>
               </button>
             </div>
           </div>
 
-          <!-- Secondary Election Card: Section B (Upcoming / Ready) -->
+          <!-- Secondary Election Card: Section B -->
           <div class="election-card ready-card">
             <div class="election-card-header">
               <span class="election-badge scheduled">Scheduled</span>
@@ -139,21 +139,25 @@
             </div>
 
             <div class="election-card-body">
-              <h3 class="election-title">CSE AI/ML Section B - CR Election 2026</h3>
+              <h3 class="election-title">Section B - CR Election 2026</h3>
               <p class="election-summary">Class Representative elections for Section B cohort. Whitelist import in progress.</p>
 
               <div class="election-meta-specs">
                 <div class="meta-spec-item">
-                  <span class="spec-label">Department</span>
-                  <span class="spec-value">CSE (AI &amp; ML)</span>
-                </div>
-                <div class="meta-spec-item">
                   <span class="spec-label">Section</span>
-                  <span class="spec-value">Section B</span>
+                  <span class="spec-value">Section B (2026–27)</span>
                 </div>
                 <div class="meta-spec-item">
                   <span class="spec-label">Status</span>
                   <span class="spec-value">Whitelist Staged</span>
+                </div>
+                <div class="meta-spec-item">
+                  <span class="spec-label">Seats</span>
+                  <span class="spec-value highlight-cyan">2 Seats (Boy CR + Girl CR)</span>
+                </div>
+                <div class="meta-spec-item">
+                  <span class="spec-label">Ballot Type</span>
+                  <span class="spec-value">Decoupled Anonymous</span>
                 </div>
               </div>
             </div>
@@ -165,25 +169,33 @@
             </div>
           </div>
 
-          <!-- Tertiary Card: Council Election -->
+          <!-- Tertiary Card: Section C -->
           <div class="election-card ready-card">
             <div class="election-card-header">
               <span class="election-badge draft">Draft</span>
-              <span class="election-seat-count">Student Council</span>
+              <span class="election-seat-count">Dual-Seat Election</span>
             </div>
 
             <div class="election-card-body">
-              <h3 class="election-title">CSE AI/ML Department Honors Council</h3>
-              <p class="election-summary">Departmental academic and hackathon advisory committee representatives.</p>
+              <h3 class="election-title">Section C - CR Election 2026</h3>
+              <p class="election-summary">Class Representative cohort voting for Section C.</p>
 
               <div class="election-meta-specs">
                 <div class="meta-spec-item">
-                  <span class="spec-label">Department</span>
-                  <span class="spec-value">CSE (AI &amp; ML)</span>
+                  <span class="spec-label">Section</span>
+                  <span class="spec-value">Section C (2026–27)</span>
                 </div>
                 <div class="meta-spec-item">
-                  <span class="spec-label">Scope</span>
-                  <span class="spec-value">All Sections</span>
+                  <span class="spec-label">Status</span>
+                  <span class="spec-value">Configuration Phase</span>
+                </div>
+                <div class="meta-spec-item">
+                  <span class="spec-label">Seats</span>
+                  <span class="spec-value highlight-cyan">2 Seats (Boy CR + Girl CR)</span>
+                </div>
+                <div class="meta-spec-item">
+                  <span class="spec-label">Ballot Type</span>
+                  <span class="spec-value">Decoupled Anonymous</span>
                 </div>
               </div>
             </div>
@@ -214,12 +226,12 @@
                 <input 
                   type="text" 
                   id="studentRollInput" 
-                  placeholder="e.g. 23AIML042 or 2023CSE015" 
+                  placeholder="e.g. 23MST042 or 2026A015" 
                   autocomplete="off" 
                   required
                 >
               </div>
-              <small class="form-hint">Must match your verified institutional record in the Department Whitelist.</small>
+              <small class="form-hint">Must match your verified institutional record in the Cohort Whitelist.</small>
             </div>
 
             <div class="form-group">
@@ -266,8 +278,8 @@
           <div class="section-header">
             <div class="header-left">
               <span class="section-tag neon-cyan">OFFICIAL DUAL-SEAT BALLOT</span>
-              <h2>CSE AI/ML Section A - CR Election 2026</h2>
-              <p class="section-desc">Department of Computer Science &amp; Engineering &bull; Class Representative Cohort</p>
+              <h2>Section A - CR Election 2026</h2>
+              <p class="section-desc">Mirai School of Technology &bull; Official CR Elections</p>
             </div>
             <div class="voter-status-card" id="voterStatusCard">
               <div class="status-indicator">
@@ -276,7 +288,7 @@
               </div>
               <div class="voter-details">
                 <span id="ballotRollNo">Roll: --</span> &bull; 
-                <span id="ballotDept">Dept: CSE (AI/ML)</span>
+                <span id="ballotDept">Cohort: Section A</span>
               </div>
             </div>
           </div>
@@ -375,7 +387,7 @@
             <div class="header-left">
               <span class="section-tag neon-cyan">OFFICIAL AUDITING</span>
               <h2>Election Telemetry &amp; Certified Results</h2>
-              <p class="section-desc">Mirai Vote Hub &bull; CSE AI/ML Class Representative Election</p>
+              <p class="section-desc">Mirai School of Technology &bull; Official CR Elections</p>
             </div>
             <div class="stage-indicator-pill" id="stageIndicatorPill">
               <span id="currentStageText">Stage 1: Live Turnout Telemetry</span>
@@ -388,7 +400,7 @@
               <div class="telemetry-header">
                 <div>
                   <span class="metric-title">Voter Turnout Rate</span>
-                  <p class="metric-subtitle">Real-time attendance percentage across certified department whitelist</p>
+                  <p class="metric-subtitle">Real-time attendance percentage across certified cohort whitelist</p>
                 </div>
                 <span class="metric-percentage" id="turnoutPercentage">0.0%</span>
               </div>
@@ -491,6 +503,9 @@
               <h2>Election Commission Control Center</h2>
               <p class="section-desc">Create elections, ingest voter whitelists, register certified candidates, and operate stage reveals</p>
             </div>
+            <div class="header-right">
+              <button id="adminLogoutBtn" class="btn btn-danger btn-sm">Logout Admin ⏻</button>
+            </div>
           </div>
 
           <div class="admin-grid">
@@ -505,11 +520,7 @@
               <form id="createElectionForm" class="admin-form">
                 <div class="form-group">
                   <label for="newElectionTitle">Election Title</label>
-                  <input type="text" id="newElectionTitle" placeholder="e.g. CSE AI/ML Section A - CR Election 2026" required>
-                </div>
-                <div class="form-group">
-                  <label for="newElectionDept">Academic Department</label>
-                  <input type="text" id="newElectionDept" value="Department of Computer Science &amp; Engineering (AI/ML)" required>
+                  <input type="text" id="newElectionTitle" placeholder="e.g. Section A - CR Election 2026" required>
                 </div>
                 <div class="form-group">
                   <label for="newElectionSection">Class Section / Cohort</label>
@@ -534,7 +545,7 @@
                 <div class="drop-zone-content">
                   <span class="upload-icon">📂</span>
                   <span>Drag &amp; drop roster file (.csv or .json)</span>
-                  <small>Auto-detects rollNo, name, email columns</small>
+                  <small>Auto-detects rollNo column</small>
                 </div>
               </div>
 
@@ -544,7 +555,7 @@
                   id="whitelistBatchTextarea" 
                   rows="5" 
                   class="form-textarea mono" 
-                  placeholder="Paste up to 120+ Roll Numbers:&#10;23AIML001&#10;23AIML002&#10;23AIML003&#10;23AIML004&#10;...or CSV: rollNo, name, email"
+                  placeholder="Paste up to 120+ Roll Numbers:&#10;23MST001&#10;23MST002&#10;23MST003&#10;23MST004&#10;...or comma-separated"
                 ></textarea>
                 <!-- Hidden compatibility field -->
                 <textarea id="whitelistJsonText" class="hidden"></textarea>
@@ -581,14 +592,14 @@
                   </div>
                   <div class="form-group flex-1">
                     <label for="adminCandRoll">Roll Number</label>
-                    <input type="text" id="adminCandRoll" placeholder="e.g. 23AIML012" required>
+                    <input type="text" id="adminCandRoll" placeholder="e.g. 23MST012" required>
                   </div>
                 </div>
 
                 <div class="form-row">
                   <div class="form-group flex-3">
                     <label for="adminCandManifesto">Manifesto / Agenda Statement</label>
-                    <input type="text" id="adminCandManifesto" placeholder="Core vision for representation, labs, and hackathons">
+                    <input type="text" id="adminCandManifesto" placeholder="Core vision for representation, academic welfare, and cohort activities">
                   </div>
                   <div class="form-group flex-2">
                     <label for="adminCandPhoto">Photo URL (Optional)</label>
@@ -708,12 +719,12 @@
         </div>
         <form id="adminLoginForm" class="modal-body">
           <div class="form-group">
-            <label for="adminEmailInput">Officer Email / UID</label>
-            <input type="text" id="adminEmailInput" placeholder="admin@mirai.ac.in" required>
+            <label for="adminEmailInput">Officer ID</label>
+            <input type="text" id="adminEmailInput" placeholder="admin" autocomplete="username" required>
           </div>
           <div class="form-group">
-            <label for="adminPasswordInput">Security Key</label>
-            <input type="password" id="adminPasswordInput" placeholder="Officer Master Key" required>
+            <label for="adminPasswordInput">Security Key / PIN</label>
+            <input type="password" id="adminPasswordInput" placeholder="MiraiVoteAdmin@2026" autocomplete="current-password" required>
           </div>
           <div class="modal-footer">
             <button type="submit" class="btn btn-cyber-primary btn-block">Authenticate Officer</button>

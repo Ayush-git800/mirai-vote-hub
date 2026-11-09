@@ -1,6 +1,6 @@
 // Mirai Vote Hub - Admin & Election Commission Controller
 // Multi-Tenant Lifecycle, Whitelist Bulk Ingestion & Candidate Management
-// Mirai School of Technology - CSE AI/ML
+// Mirai School of Technology
 
 import { db } from "./firebase-config.js";
 import { showAlert } from "./auth.js";
@@ -13,6 +13,10 @@ import {
   writeBatch,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+// Deterministic Admin Credentials
+export const ADMIN_USER = "admin";
+export const ADMIN_PIN = "MiraiVoteAdmin@2026";
 
 // Whitelist Ingestion Elements
 const whitelistFileInput = document.getElementById("whitelistFileInput");
@@ -37,18 +41,102 @@ const adminCandidateRegistryForm = document.getElementById("adminCandidateRegist
 const adminBoyCandidateList = document.getElementById("adminBoyCandidateList");
 const adminGirlCandidateList = document.getElementById("adminGirlCandidateList");
 
-// 1. Create Election Operation
+// ============================================================================
+// 1. Admin Authentication Engine (Bypasses Firebase Auth API Key Requirement)
+// ============================================================================
+
+export function authenticateAdmin(username, password) {
+  const cleanUser = (username || "").trim().toLowerCase();
+  const cleanPin = (password || "").trim();
+
+  // Deterministic validation: checks against ADMIN_USER and ADMIN_PIN
+  const isUserValid = cleanUser === ADMIN_USER || cleanUser === "admin@mirai.ac.in" || cleanUser === "admin@miraivote.hub";
+  const isPinValid = cleanPin === ADMIN_PIN;
+
+  if (isUserValid && isPinValid) {
+    sessionStorage.setItem("isAdminAuthenticated", "true");
+
+    // Close modal
+    const adminModal = document.getElementById("adminLoginModal");
+    if (adminModal) adminModal.classList.add("hidden");
+
+    // Clear any alert banners
+    const alertBanner = document.getElementById("alertBanner");
+    if (alertBanner) alertBanner.classList.add("hidden");
+
+    // Reveal Admin Terminal Tab & View
+    const tabAdminBtn = document.getElementById("tabAdminBtn");
+    if (tabAdminBtn) tabAdminBtn.classList.remove("hidden");
+    tabAdminBtn?.click();
+
+    // Update Header Status & Profile
+    const userProfile = document.getElementById("userProfile");
+    const userDisplayName = document.getElementById("userDisplayName");
+    const userRoleBadge = document.getElementById("userRoleBadge");
+    if (userProfile && userDisplayName && userRoleBadge) {
+      userProfile.classList.remove("hidden");
+      userDisplayName.textContent = "Admin Officer";
+      userRoleBadge.textContent = "COMMISSION";
+      userRoleBadge.style.color = "var(--neon-amber)";
+    }
+
+    showAlert("Admin Officer session authenticated successfully.", "success");
+    return true;
+  } else {
+    showAlert("Invalid admin credentials. Please enter valid Officer ID and Security PIN.", "error");
+    return false;
+  }
+}
+
+export function logoutAdmin() {
+  sessionStorage.removeItem("isAdminAuthenticated");
+
+  // Hide admin tab
+  const tabAdminBtn = document.getElementById("tabAdminBtn");
+  if (tabAdminBtn) tabAdminBtn.classList.add("hidden");
+
+  // Reset header profile
+  const userProfile = document.getElementById("userProfile");
+  if (userProfile) userProfile.classList.add("hidden");
+
+  // Return to active elections view
+  document.getElementById("tabElectionsBtn")?.click();
+  showAlert("Admin session signed out.", "info");
+}
+
+export function checkAdminSession() {
+  if (sessionStorage.getItem("isAdminAuthenticated") === "true") {
+    const tabAdminBtn = document.getElementById("tabAdminBtn");
+    if (tabAdminBtn) tabAdminBtn.classList.remove("hidden");
+
+    const userProfile = document.getElementById("userProfile");
+    const userDisplayName = document.getElementById("userDisplayName");
+    const userRoleBadge = document.getElementById("userRoleBadge");
+    if (userProfile && userDisplayName && userRoleBadge) {
+      userProfile.classList.remove("hidden");
+      userDisplayName.textContent = "Admin Officer";
+      userRoleBadge.textContent = "COMMISSION";
+      userRoleBadge.style.color = "var(--neon-amber)";
+    }
+    return true;
+  }
+  return false;
+}
+
+// ============================================================================
+// 2. Election Creation & Section Management
+// ============================================================================
+
 export async function createElection(title, department, section) {
   if (!title) throw new Error("Election title is required.");
   const safeSection = (section || "A").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-  const electionId = `cse-aiml-${safeSection || "cohort"}`;
+  const electionId = `section-${safeSection || "cohort"}`;
 
   try {
     const electionRef = doc(db, "elections", electionId);
     const electionData = {
       id: electionId,
       title: title,
-      department: department || "Department of Computer Science & Engineering (AI/ML)",
       section: section || "Section A",
       status: "draft",
       revealStage: 1,
@@ -63,7 +151,6 @@ export async function createElection(title, department, section) {
     await setDoc(metaRef, {
       activeElectionId: electionId,
       title: title,
-      dept: department || "CSE (AI/ML)",
       section: section || "Section A",
       status: "draft",
       revealStage: 1,
@@ -79,12 +166,15 @@ export async function createElection(title, department, section) {
   }
 }
 
-// 2. Parse Raw Whitelist Input (Handles whitespace, commas, line breaks, CSV, JSON)
+// ============================================================================
+// 3. Batch Whitelist Importer (Handles whitespace, commas, line breaks, CSV, JSON)
+// ============================================================================
+
 export function parseWhitelistInput(rawText) {
   const trimmed = rawText.trim();
   if (!trimmed) return [];
 
-  // 1. JSON Array Parse attempt
+  // JSON Array Parse attempt
   if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
     try {
       const parsed = JSON.parse(trimmed);
@@ -95,7 +185,7 @@ export function parseWhitelistInput(rawText) {
           rollNo: roll,
           name: item.name || `Student ${roll}`,
           email: item.email || `${roll.toLowerCase()}@mirai.ac.in`,
-          dept: item.dept || item.department || "CSE (AI/ML)",
+          section: item.section || "Section A",
           hasVoted: false
         };
       }).filter(v => v.rollNo.length >= 4);
@@ -104,18 +194,15 @@ export function parseWhitelistInput(rawText) {
     }
   }
 
-  // 2. Robust Token & Delimiter Parser
-  // Split on newlines, commas, tabs, or spaces
+  // Token & Delimiter Parser (whitespace, commas, line breaks)
   const lines = trimmed.split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
   const voters = [];
   const seen = new Set();
 
   for (const line of lines) {
-    // If CSV row with multiple columns
     if (line.includes(",")) {
       const cols = line.split(",").map(c => c.trim());
       const rawRoll = cols[0].toUpperCase();
-      // Skip header if contains 'roll' or 'id'
       if (rawRoll.includes("ROLL") || rawRoll.includes("ID") || rawRoll.includes("NAME")) {
         continue;
       }
@@ -126,12 +213,11 @@ export function parseWhitelistInput(rawText) {
           rollNo: roll,
           name: cols[1] || `Student ${roll}`,
           email: cols[2] || `${roll.toLowerCase()}@mirai.ac.in`,
-          dept: cols[3] || "CSE (AI/ML)",
+          section: "Section A",
           hasVoted: false
         });
       }
     } else {
-      // Line containing roll number(s)
       const tokens = line.split(/[\s,;]+/).map(t => t.trim().toUpperCase()).filter(Boolean);
       for (const tok of tokens) {
         const roll = tok.replace(/[^A-Z0-9]/g, "");
@@ -141,7 +227,7 @@ export function parseWhitelistInput(rawText) {
             rollNo: roll,
             name: `Student ${roll}`,
             email: `${roll.toLowerCase()}@mirai.ac.in`,
-            dept: "CSE (AI/ML)",
+            section: "Section A",
             hasVoted: false
           });
         }
@@ -152,8 +238,7 @@ export function parseWhitelistInput(rawText) {
   return voters;
 }
 
-// 3. Upload & Batch Commit Whitelist to Firestore
-export async function uploadWhitelist(electionId = "cse-aiml-a", rawText) {
+export async function uploadWhitelist(electionId = "section-a", rawText) {
   const voters = parseWhitelistInput(rawText);
   if (!voters || voters.length === 0) {
     showAlert("No valid student IDs found in input.", "error");
@@ -167,7 +252,6 @@ export async function uploadWhitelist(electionId = "cse-aiml-a", rawText) {
       whitelistImportStatus.className = "import-status processing";
     }
 
-    // Firestore batch limit is 500 writes
     const CHUNK_SIZE = 400;
     let committed = 0;
 
@@ -184,7 +268,7 @@ export async function uploadWhitelist(electionId = "cse-aiml-a", rawText) {
           rollNo: rollKey,
           name: voter.name,
           email: voter.email,
-          dept: voter.dept || "CSE (AI/ML)",
+          section: voter.section || "Section A",
           hasVoted: false,
           updatedAt: serverTimestamp()
         }, { merge: true });
@@ -195,7 +279,7 @@ export async function uploadWhitelist(electionId = "cse-aiml-a", rawText) {
           rollNo: rollKey,
           name: voter.name,
           email: voter.email,
-          dept: voter.dept || "CSE (AI/ML)",
+          section: voter.section || "Section A",
           hasVoted: false,
           claimed: false,
           updatedAt: serverTimestamp()
@@ -231,8 +315,11 @@ export async function uploadWhitelist(electionId = "cse-aiml-a", rawText) {
   }
 }
 
-// 4. Candidate Registration: addCandidate(electionId, candidateData)
-export async function addCandidate(electionId = "cse-aiml-a", { name, category, photoUrl, manifesto, rollNo }) {
+// ============================================================================
+// 4. Candidate Registration & Management
+// ============================================================================
+
+export async function addCandidate(electionId = "section-a", { name, category, photoUrl, manifesto, rollNo }) {
   if (!name) throw new Error("Candidate name is required.");
   const safeRoll = (rollNo || name).trim().replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
   const candId = `${category}_${safeRoll}`;
@@ -243,17 +330,17 @@ export async function addCandidate(electionId = "cse-aiml-a", { name, category, 
       name: name.trim(),
       category: category,
       rollNo: (rollNo || "Certified").trim().toUpperCase(),
-      manifesto: manifesto || "Committed to representing CSE AI/ML student cohort interests.",
+      manifesto: manifesto || "Committed to representing student cohort interests.",
       photoUrl: photoUrl || "",
       voteCount: 0,
       createdAt: serverTimestamp()
     };
 
-    // 1. Write to nested subcollection: elections/{electionId}/candidates/{candidateId}
+    // Subcollection: elections/{electionId}/candidates/{candidateId}
     const electionCandRef = doc(db, "elections", electionId, "candidates", candId);
     await setDoc(electionCandRef, candidateData, { merge: true });
 
-    // 2. Synchronize to root collection: candidates/{candidateId}
+    // Root candidates: candidates/{candidateId}
     const rootCandRef = doc(db, "candidates", candId);
     await setDoc(rootCandRef, candidateData, { merge: true });
 
@@ -268,15 +355,17 @@ export async function addCandidate(electionId = "cse-aiml-a", { name, category, 
   }
 }
 
-// 5. Lifecycle Transition State: setElectionStatus(electionId, status)
+// ============================================================================
+// 5. Election Lifecycle Controls
 // Supports: "draft", "active", "ended", "published"
-export async function setElectionStatus(electionId = "cse-aiml-a", status) {
+// ============================================================================
+
+export async function setElectionStatus(electionId = "section-a", status) {
   const validStates = ["draft", "active", "ended", "published", "ready", "concluded"];
   if (!validStates.includes(status)) {
     throw new Error(`Invalid election status: ${status}`);
   }
 
-  // Canonicalize status
   let canonicalStatus = status;
   let revealStage = 1;
 
@@ -295,7 +384,6 @@ export async function setElectionStatus(electionId = "cse-aiml-a", status) {
   }
 
   try {
-    // 1. Update election document: elections/{electionId}
     const electionRef = doc(db, "elections", electionId);
     await setDoc(electionRef, {
       status: canonicalStatus,
@@ -303,7 +391,6 @@ export async function setElectionStatus(electionId = "cse-aiml-a", status) {
       updatedAt: serverTimestamp()
     }, { merge: true });
 
-    // 2. Synchronize with election_meta/config
     const metaRef = doc(db, "election_meta", "config");
     await setDoc(metaRef, {
       status: canonicalStatus,
@@ -314,7 +401,6 @@ export async function setElectionStatus(electionId = "cse-aiml-a", status) {
     showAlert(`Election status transitioned to: ${status.toUpperCase()}`, "success");
     highlightLifecycleButtons(status);
 
-    // Update status label in top navbar
     const statusLabel = document.getElementById("electionStatusLabel");
     if (statusLabel) {
       if (status === "active") statusLabel.textContent = "Election Active";
@@ -328,11 +414,6 @@ export async function setElectionStatus(electionId = "cse-aiml-a", status) {
     showAlert(`Failed to set election status: ${err.message}`, "error");
     throw err;
   }
-}
-
-// Backward compatibility alias
-export async function updateElectionState(status) {
-  return setElectionStatus("cse-aiml-a", status);
 }
 
 export async function updateRevealStage(stage) {
@@ -369,9 +450,8 @@ function highlightLifecycleButtons(status) {
   }
 }
 
-// Delete Candidate
-export async function deleteCandidate(candidateId, electionId = "cse-aiml-a") {
-  if (!confirm(`Are you sure you want to remove this candidate (${candidateId})?`)) return;
+export async function deleteCandidate(candidateId, electionId = "section-a") {
+  if (!confirm(`Are you sure you want to remove candidate (${candidateId})?`)) return;
   try {
     await deleteDoc(doc(db, "elections", electionId, "candidates", candidateId)).catch(() => {});
     await deleteDoc(doc(db, "candidates", candidateId));
@@ -382,8 +462,7 @@ export async function deleteCandidate(candidateId, electionId = "cse-aiml-a") {
   }
 }
 
-// Load and Render Certified Admin Candidate list
-async function loadAdminCandidates(electionId = "cse-aiml-a") {
+async function loadAdminCandidates(electionId = "section-a") {
   try {
     const snapshot = await getDocs(collection(db, "candidates"));
     if (adminBoyCandidateList) adminBoyCandidateList.innerHTML = "";
@@ -414,7 +493,6 @@ async function loadAdminCandidates(electionId = "cse-aiml-a") {
   }
 }
 
-// Emergency Reset Ledger
 async function purgeElectionVotes() {
   const code = prompt("CRITICAL ACTION: Type 'RESET-MIRAI' to reset all cast votes and whitelist vote flags:");
   if (code !== "RESET-MIRAI") {
@@ -425,7 +503,6 @@ async function purgeElectionVotes() {
   try {
     showAlert("Purging vote records and resetting whitelist...", "info");
 
-    // 1. Reset Whitelist hasVoted flags
     const whitelistSnap = await getDocs(collection(db, "whitelist"));
     const batch = writeBatch(db);
     whitelistSnap.forEach(d => {
@@ -437,7 +514,6 @@ async function purgeElectionVotes() {
       });
     });
 
-    // 2. Reset Candidate vote counters to 0
     const candSnap = await getDocs(collection(db, "candidates"));
     candSnap.forEach(c => {
       batch.update(doc(db, "candidates", c.id), { voteCount: 0 });
@@ -445,7 +521,6 @@ async function purgeElectionVotes() {
 
     await batch.commit();
 
-    // 3. Clear votes collection
     const votesSnap = await getDocs(collection(db, "votes"));
     for (const v of votesSnap.docs) {
       await deleteDoc(doc(db, "votes", v.id));
@@ -457,8 +532,31 @@ async function purgeElectionVotes() {
   }
 }
 
-// Setup Event Listeners
+// ============================================================================
+// 6. Setup Event Listeners
+// ============================================================================
+
 document.addEventListener("DOMContentLoaded", () => {
+  // Check persisted admin session on load
+  checkAdminSession();
+
+  // Admin Login Modal form submission
+  const adminForm = document.getElementById("adminLoginForm");
+  if (adminForm) {
+    adminForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const user = document.getElementById("adminEmailInput")?.value;
+      const pass = document.getElementById("adminPasswordInput")?.value;
+      authenticateAdmin(user, pass);
+    });
+  }
+
+  // Admin Logout Button in Dashboard
+  const adminLogoutBtn = document.getElementById("adminLogoutBtn");
+  if (adminLogoutBtn) {
+    adminLogoutBtn.addEventListener("click", logoutAdmin);
+  }
+
   // Batch Whitelist Processing Button
   if (processWhitelistBtn && whitelistBatchTextarea) {
     processWhitelistBtn.addEventListener("click", () => {
@@ -467,7 +565,7 @@ document.addEventListener("DOMContentLoaded", () => {
         showAlert("Please paste student IDs or CSV roster into the box.", "error");
         return;
       }
-      uploadWhitelist("cse-aiml-a", raw);
+      uploadWhitelist("section-a", raw);
     });
   }
 
@@ -481,7 +579,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const reader = new FileReader();
       reader.onload = (evt) => {
         const text = evt.target.result;
-        uploadWhitelist("cse-aiml-a", text);
+        uploadWhitelist("section-a", text);
       };
       reader.readAsText(file);
     });
@@ -493,7 +591,6 @@ document.addEventListener("DOMContentLoaded", () => {
     createElectionForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       const title = document.getElementById("newElectionTitle")?.value.trim();
-      const dept = document.getElementById("newElectionDept")?.value.trim();
       const section = document.getElementById("newElectionSection")?.value.trim();
 
       if (!title) {
@@ -501,7 +598,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      await createElection(title, dept, section);
+      await createElection(title, "Mirai School of Technology", section);
     });
   }
 
@@ -515,7 +612,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const manifesto = document.getElementById("adminCandManifesto").value.trim();
       const photo = document.getElementById("adminCandPhoto").value.trim();
 
-      await addCandidate("cse-aiml-a", {
+      await addCandidate("section-a", {
         name: name,
         category: cat,
         rollNo: roll,
@@ -528,10 +625,10 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Lifecycle state transition buttons
-  if (lifecycleDraftBtn) lifecycleDraftBtn.addEventListener("click", () => setElectionStatus("cse-aiml-a", "draft"));
-  if (lifecycleActiveBtn) lifecycleActiveBtn.addEventListener("click", () => setElectionStatus("cse-aiml-a", "active"));
-  if (lifecycleConcludedBtn) lifecycleConcludedBtn.addEventListener("click", () => setElectionStatus("cse-aiml-a", "ended"));
-  if (lifecyclePublishBtn) lifecyclePublishBtn.addEventListener("click", () => setElectionStatus("cse-aiml-a", "published"));
+  if (lifecycleDraftBtn) lifecycleDraftBtn.addEventListener("click", () => setElectionStatus("section-a", "draft"));
+  if (lifecycleActiveBtn) lifecycleActiveBtn.addEventListener("click", () => setElectionStatus("section-a", "active"));
+  if (lifecycleConcludedBtn) lifecycleConcludedBtn.addEventListener("click", () => setElectionStatus("section-a", "ended"));
+  if (lifecyclePublishBtn) lifecyclePublishBtn.addEventListener("click", () => setElectionStatus("section-a", "published"));
 
   if (stage1Btn) stage1Btn.addEventListener("click", () => updateRevealStage(1));
   if (purgeElectionDataBtn) purgeElectionDataBtn.addEventListener("click", purgeElectionVotes);

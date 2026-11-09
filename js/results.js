@@ -1,5 +1,5 @@
 // Mirai Vote Hub - Live Telemetry & 2-Stage Reveal Results Engine
-// Mirai School of Technology - CSE AI/ML
+// Mirai School of Technology
 
 import { db } from "./firebase-config.js";
 import {

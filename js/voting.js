@@ -1,5 +1,5 @@
 // Mirai Vote Hub - Dual-Seat Voting & Atomic Transaction Engine
-// Mirai School of Technology - CSE AI/ML
+// Mirai School of Technology
 
 import { db } from "./firebase-config.js";
 import { state, showAlert } from "./auth.js";
@@ -105,7 +105,7 @@ function renderSeatCandidates(category, candidates, container) {
         </div>
       </div>
       <div class="candidate-manifesto-box">
-        <p class="candidate-manifesto">${cand.manifesto || 'Committed to representing CSE AI/ML student cohort interests.'}</p>
+        <p class="candidate-manifesto">${cand.manifesto || 'Committed to representing student cohort interests.'}</p>
       </div>
     `;
 
@@ -215,7 +215,7 @@ export async function executeAtomicVote() {
       });
 
       // Synchronize election subcollection whitelist
-      const electionWhitelistRef = doc(db, "elections", "cse-aiml-a", "whitelist", rollNo);
+      const electionWhitelistRef = doc(db, "elections", "section-a", "whitelist", rollNo);
       transaction.set(electionWhitelistRef, {
         hasVoted: true,
         votedAt: serverTimestamp(),
@@ -240,8 +240,8 @@ export async function executeAtomicVote() {
         voteCount: increment(1)
       });
 
-      const electionBoyRef = doc(db, "elections", "cse-aiml-a", "candidates", boyCandidateId);
-      const electionGirlRef = doc(db, "elections", "cse-aiml-a", "candidates", girlCandidateId);
+      const electionBoyRef = doc(db, "elections", "section-a", "candidates", boyCandidateId);
+      const electionGirlRef = doc(db, "elections", "section-a", "candidates", girlCandidateId);
       transaction.set(electionBoyRef, { voteCount: increment(1) }, { merge: true });
       transaction.set(electionGirlRef, { voteCount: increment(1) }, { merge: true });
     });

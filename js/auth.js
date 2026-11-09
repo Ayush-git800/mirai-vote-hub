@@ -1,10 +1,9 @@
 // Mirai Vote Hub - Authentication, Access Control & Dynamic Eligibility Engine
-// Mirai School of Technology - CSE AI/ML
+// Mirai School of Technology
 
 import { auth, db } from "./firebase-config.js";
 import { 
   signInAnonymously, 
-  signInWithEmailAndPassword, 
   signOut, 
   onAuthStateChanged 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
@@ -17,12 +16,13 @@ import {
   getDocs,
   serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { authenticateAdmin } from "./admin.js";
 
 // Session State
 export const state = {
   currentUser: null,
   role: null, // 'student' | 'admin'
-  studentData: null, // { rollNo, name, email, dept, hasVoted, isRegistered }
+  studentData: null, // { rollNo, name, email, section, hasVoted, isRegistered }
   isAdmin: false
 };
 
@@ -66,7 +66,7 @@ export async function hashPasskey(passkey) {
 }
 
 // Dynamic Eligibility Checker for a Specific Election
-export async function checkStudentEligibility(studentId, electionId = "cse-aiml-a") {
+export async function checkStudentEligibility(studentId, electionId = "section-a") {
   if (!studentId) return { eligible: false, hasVoted: false, status: "ineligible" };
   const normalizedId = studentId.trim().toUpperCase();
 
@@ -121,7 +121,7 @@ export async function updateElectionCardsEligibility(studentId) {
 
   for (const card of cards) {
     const enterBtn = card.querySelector(".enter-election-btn");
-    const electionId = enterBtn ? (enterBtn.dataset.electionId || "cse-aiml-a") : "cse-aiml-a";
+    const electionId = enterBtn ? (enterBtn.dataset.electionId || "section-a") : "section-a";
     const metaContainer = card.querySelector(".election-meta-specs");
 
     const result = await checkStudentEligibility(studentId, electionId);
@@ -239,7 +239,7 @@ export async function claimStudentBallot(rollNo, passkey) {
     state.studentData = {
       rollNo: normalizedRoll,
       name: whitelistData.name || `Student ${normalizedRoll}`,
-      dept: whitelistData.dept || "CSE (AI/ML)",
+      section: whitelistData.section || "Section A",
       hasVoted: whitelistData.hasVoted === true,
       votedAt: whitelistData.votedAt || null,
       receiptHash: whitelistData.receiptHash || null,
@@ -252,7 +252,7 @@ export async function claimStudentBallot(rollNo, passkey) {
     localStorage.setItem("mirai_vote_session", JSON.stringify({
       rollNo: state.studentData.rollNo,
       name: state.studentData.name,
-      dept: state.studentData.dept,
+      section: state.studentData.section,
       role: "student",
       timestamp: Date.now()
     }));
@@ -280,23 +280,6 @@ export async function claimStudentBallot(rollNo, passkey) {
   } finally {
     if (spinner) spinner.classList.add("hidden");
     if (claimBtn) claimBtn.disabled = false;
-  }
-}
-
-// Admin Authentication
-export async function loginAdmin(email, password) {
-  try {
-    const cred = await signInWithEmailAndPassword(auth, email, password);
-    state.currentUser = cred.user;
-    state.role = "admin";
-    state.isAdmin = true;
-    updateNavForRole();
-    showAlert("Admin Officer session authenticated successfully.", "success");
-    return true;
-  } catch (error) {
-    console.error("Admin login error:", error);
-    showAlert(`Admin authentication error: ${error.message}`, "error");
-    return false;
   }
 }
 
@@ -334,7 +317,7 @@ function updateNavForRole() {
   if (userProfile && (state.studentData || state.isAdmin)) {
     userProfile.classList.remove("hidden");
     if (state.isAdmin) {
-      userDisplayName.textContent = "Election Officer";
+      userDisplayName.textContent = "Admin Officer";
       userRoleBadge.textContent = "ADMIN";
       userRoleBadge.style.color = "var(--neon-amber)";
       if (tabAdminBtn) tabAdminBtn.classList.remove("hidden");
@@ -357,7 +340,7 @@ function unlockBallotUI(student) {
   const ballotRoll = document.getElementById("ballotRollNo");
   const ballotDept = document.getElementById("ballotDept");
   if (ballotRoll) ballotRoll.textContent = `Roll: ${student.rollNo}`;
-  if (ballotDept) ballotDept.textContent = `Dept: ${student.dept || 'CSE (AI/ML)'}`;
+  if (ballotDept) ballotDept.textContent = `Cohort: ${student.section || 'Section A'}`;
 
   // Notify voting module to load candidate cards
   window.dispatchEvent(new CustomEvent("ballotUnlocked", { detail: student }));
@@ -403,7 +386,7 @@ export async function initSession() {
     state.studentData = {
       rollNo: session.rollNo,
       name: data.name || session.name || `Student ${session.rollNo}`,
-      dept: data.dept || session.dept || "CSE (AI/ML)",
+      section: data.section || session.section || "Section A",
       hasVoted: data.hasVoted === true,
       votedAt: data.votedAt || null,
       receiptHash: data.receiptHash || null,
@@ -450,20 +433,6 @@ document.addEventListener("DOMContentLoaded", () => {
   if (closeAdminModal && adminModal) {
     closeAdminModal.addEventListener("click", () => {
       adminModal.classList.add("hidden");
-    });
-  }
-
-  const adminForm = document.getElementById("adminLoginForm");
-  if (adminForm && adminModal) {
-    adminForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const email = document.getElementById("adminEmailInput").value;
-      const pass = document.getElementById("adminPasswordInput").value;
-      const ok = await loginAdmin(email, pass);
-      if (ok) {
-        adminModal.classList.add("hidden");
-        document.getElementById("tabAdminBtn")?.click();
-      }
     });
   }
 });
