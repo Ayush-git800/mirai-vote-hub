@@ -112,7 +112,28 @@ p {
 .brand-group {
   display: flex;
   align-items: center;
+}
+
+.brand-identity {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  display: flex;
+  align-items: center;
   gap: 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: var(--transition);
+}
+
+.brand-identity:hover svg {
+  filter: drop-shadow(0 0 14px rgba(0, 240, 255, 0.95)) !important;
+  transform: scale(1.02);
+}
+
+.brand-identity svg {
+  transition: var(--transition);
 }
 
 .brand-logo-container,
@@ -122,28 +143,6 @@ p {
   border: none !important;
   box-shadow: none !important;
   padding: 0 !important;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.brand-logo {
-  height: 42px;
-  width: auto;
-  object-fit: contain;
-  mix-blend-mode: screen; /* Strips dark/black background completely, rendering only the glowing neon elements */
-  filter: drop-shadow(0 0 10px rgba(0, 240, 255, 0.45));
-  display: block;
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-  transition: var(--transition);
-}
-
-.brand-logo:hover {
-  filter: drop-shadow(0 0 14px rgba(0, 240, 255, 0.7));
-  transform: scale(1.02);
 }
 
 .brand-title {

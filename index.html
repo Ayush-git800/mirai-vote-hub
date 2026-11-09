@@ -18,10 +18,23 @@
     <header class="app-header">
       <div class="header-container">
         <div class="brand-group">
-          <div class="brand-logo-container">
-            <img src="assets/logo.png" alt="Mirai Vote Hub Logo" class="brand-logo" id="headerLogo">
+          <div class="brand-identity" style="display: flex; align-items: center; gap: 12px; cursor: pointer;">
+            <svg width="40" height="40" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.7)); flex-shrink: 0;">
+              <!-- Ballot Box Cube -->
+              <path d="M50 15L85 35L50 55L15 35L50 15Z" stroke="#00f0ff" stroke-width="4" stroke-linejoin="round" fill="rgba(0, 240, 255, 0.1)"/>
+              <path d="M15 35V65L50 85V55L15 35Z" stroke="#00f0ff" stroke-width="4" stroke-linejoin="round" fill="rgba(10, 13, 20, 0.8)"/>
+              <path d="M85 35V65L50 85V55L85 35Z" stroke="#ff007b" stroke-width="4" stroke-linejoin="round" fill="rgba(255, 0, 123, 0.08)"/>
+              <!-- Slot on Top -->
+              <path d="M38 32L62 38" stroke="#00f0ff" stroke-width="4" stroke-linecap="round"/>
+              <!-- Neon Checkmark -->
+              <path d="M36 50L46 62L68 36" stroke="#00f0ff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 0 6px #00f0ff);"/>
+              <!-- Hub Signal Dots -->
+              <circle cx="82" cy="72" r="3" fill="#ff007b" style="filter: drop-shadow(0 0 4px #ff007b);"/>
+              <circle cx="90" cy="62" r="2.5" fill="#00f0ff"/>
+              <line x1="82" y1="72" x2="90" y2="62" stroke="#ff007b" stroke-width="1.5"/>
+            </svg>
+            <span style="font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; background: linear-gradient(135deg, #ffffff 60%, #00f0ff 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Mirai Vote Hub</span>
           </div>
-          <span class="brand-title">Mirai Vote Hub</span>
         </div>
 
         <div class="header-center">
