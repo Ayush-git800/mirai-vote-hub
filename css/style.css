@@ -115,45 +115,41 @@ p {
 }
 
 .brand-identity {
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  padding: 0 !important;
   display: flex;
   align-items: center;
   gap: 12px;
-  cursor: pointer;
-  user-select: none;
-  transition: var(--transition);
-}
-
-.brand-identity:hover svg {
-  filter: drop-shadow(0 0 14px rgba(0, 240, 255, 0.95)) !important;
-  transform: scale(1.02);
-}
-
-.brand-identity svg {
-  transition: var(--transition);
-}
-
-.brand-logo-container,
-.logo-wrapper,
-.logo-box {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
   padding: 0 !important;
+  cursor: pointer;
+  user-select: none;
+}
+
+.nav-logo {
+  height: 42px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.5));
+  display: block;
+  transition: var(--transition);
+}
+
+.nav-logo:hover {
+  filter: drop-shadow(0 0 12px rgba(0, 240, 255, 0.8));
+  transform: scale(1.02);
 }
 
 .brand-title {
   font-size: 1.35rem;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  background: linear-gradient(135deg, #06b6d4 0%, #38bdf8 35%, #ffffff 90%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  display: inline-block;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.02em;
   line-height: 1;
+}
+
+.brand-title .highlight {
+  color: #00f0ff;
 }
 
 .election-status-pill {
