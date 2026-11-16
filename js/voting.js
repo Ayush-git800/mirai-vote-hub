@@ -13,12 +13,21 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // Ballot State
+let currentElectionId = "section-a";
 let selectedBoyCandidate = null;
 let selectedGirlCandidate = null;
 let candidatesCache = {
   boy_cr: [],
   girl_cr: []
 };
+
+export function setCurrentElectionId(id) {
+  if (id) currentElectionId = id;
+}
+
+export function getCurrentElectionId() {
+  return currentElectionId;
+}
 
 // Elements
 const boyCandidatesGrid = document.getElementById("boyCandidatesGrid");
@@ -156,13 +165,171 @@ function closeReviewModal() {
 }
 
 // Cryptographic pseudo-hash generator for receipt
-function generateReceiptToken(rollNo) {
+export function generateReceiptToken(rollNo) {
   const ts = Date.now().toString(16);
   const entropy = Math.random().toString(16).substring(2, 10);
   return `0xMIRAI-${ts}-${entropy.toUpperCase()}`;
 }
 
-// Execute Atomic Transaction Voting
+// ============================================================================
+// Atomic Ballot Transaction Engine (Zero Duplicate Guarantee & Decoupled Secrecy)
+// ============================================================================
+export async function submitBallot(electionId, studentId, boyCandidateId, girlCandidateId) {
+  const targetElectionId = electionId || currentElectionId || "section-a";
+  const normalizedRoll = (studentId || "").trim().toUpperCase();
+
+  if (!normalizedRoll) {
+    throw new Error("Student Roll Number is required to cast a ballot.");
+  }
+  if (!boyCandidateId || !girlCandidateId) {
+    throw new Error("Dual-seat election requires selecting 1 Boy CR and 1 Girl CR.");
+  }
+
+  const receiptToken = generateReceiptToken(normalizedRoll);
+  const nowTs = Date.now();
+
+  await runTransaction(db, async (transaction) => {
+    // ------------------------------------------------------------------------
+    // STEP 1: ALL READS (Firestore runTransaction requires all reads before writes)
+    // ------------------------------------------------------------------------
+
+    // 1a. Target election state read
+    const electionRef = doc(db, "elections", targetElectionId);
+    const electionSnap = await transaction.get(electionRef);
+
+    const metaRef = doc(db, "election_meta", "config");
+    const metaSnap = await transaction.get(metaRef);
+
+    // 1b. Voter whitelist state reads
+    const electionVoterRef = doc(db, "elections", targetElectionId, "whitelist", normalizedRoll);
+    const electionVoterSnap = await transaction.get(electionVoterRef);
+
+    const rootVoterRef = doc(db, "whitelist", normalizedRoll);
+    const rootVoterSnap = await transaction.get(rootVoterRef);
+
+    // 1c. Candidate records reads
+    const boyRef = doc(db, "candidates", boyCandidateId);
+    const girlRef = doc(db, "candidates", girlCandidateId);
+    const boySnap = await transaction.get(boyRef);
+    const girlSnap = await transaction.get(girlRef);
+
+    // ------------------------------------------------------------------------
+    // STEP 2: VERIFICATION & AUDIT GATES
+    // ------------------------------------------------------------------------
+
+    // Gate A: Target election status must strictly be "active"
+    let status = "active";
+    if (electionSnap.exists()) {
+      status = electionSnap.data().status;
+    } else if (metaSnap.exists()) {
+      status = metaSnap.data().status;
+    }
+
+    if (status !== "active") {
+      throw new Error(`Election is currently '${status}'. Ballots can only be cast when election status is 'active'.`);
+    }
+
+    // Gate B: Voter whitelist verification & Zero Duplicate Guarantee
+    if (!electionVoterSnap.exists() && !rootVoterSnap.exists()) {
+      throw new Error(`Roll Number '${normalizedRoll}' is not certified on the election whitelist.`);
+    }
+
+    const electionVoterData = electionVoterSnap.exists() ? electionVoterSnap.data() : null;
+    const rootVoterData = rootVoterSnap.exists() ? rootVoterSnap.data() : null;
+
+    if ((electionVoterData && electionVoterData.hasVoted === true) || (rootVoterData && rootVoterData.hasVoted === true)) {
+      throw new Error("Duplicate Vote Rejected: A ballot has already been cast and sealed for this Roll Number.");
+    }
+
+    // Gate C: Candidate verification & category integrity
+    if (!boySnap.exists()) {
+      throw new Error(`Selected Boy CR candidate (${boyCandidateId}) not found in candidate registry.`);
+    }
+    if (!girlSnap.exists()) {
+      throw new Error(`Selected Girl CR candidate (${girlCandidateId}) not found in candidate registry.`);
+    }
+
+    const boyData = boySnap.data();
+    const girlData = girlSnap.data();
+
+    if (boyData.category !== "boy_cr") {
+      throw new Error(`Candidate '${boyData.name || boyCandidateId}' does not belong to category 'boy_cr'.`);
+    }
+    if (girlData.category !== "girl_cr") {
+      throw new Error(`Candidate '${girlData.name || girlCandidateId}' does not belong to category 'girl_cr'.`);
+    }
+
+    // ------------------------------------------------------------------------
+    // STEP 3: ATOMIC WRITES
+    // ------------------------------------------------------------------------
+    const voteTimestamp = serverTimestamp();
+
+    // 3a. Mark voter as voted (Locks duplicate attempts)
+    const voterUpdate = {
+      hasVoted: true,
+      votedAt: voteTimestamp,
+      votedAtMillis: nowTs,
+      receiptHash: receiptToken
+    };
+
+    if (electionVoterSnap.exists()) {
+      transaction.update(electionVoterRef, voterUpdate);
+    } else {
+      transaction.set(electionVoterRef, {
+        rollNo: normalizedRoll,
+        name: rootVoterData ? (rootVoterData.name || `Student ${normalizedRoll}`) : `Student ${normalizedRoll}`,
+        section: rootVoterData ? (rootVoterData.section || "Section A") : "Section A",
+        ...voterUpdate
+      }, { merge: true });
+    }
+
+    if (rootVoterSnap.exists()) {
+      transaction.update(rootVoterRef, voterUpdate);
+    } else {
+      transaction.set(rootVoterRef, {
+        rollNo: normalizedRoll,
+        ...voterUpdate
+      }, { merge: true });
+    }
+
+    // 3b. Increment candidate vote counters atomically
+    transaction.update(boyRef, {
+      voteCount: increment(1)
+    });
+    transaction.update(girlRef, {
+      voteCount: increment(1)
+    });
+
+    const electionBoyRef = doc(db, "elections", targetElectionId, "candidates", boyCandidateId);
+    const electionGirlRef = doc(db, "elections", targetElectionId, "candidates", girlCandidateId);
+    transaction.set(electionBoyRef, { voteCount: increment(1) }, { merge: true });
+    transaction.set(electionGirlRef, { voteCount: increment(1) }, { merge: true });
+
+    // 3c. Decoupled Anonymous Ballot Record (Ballot Secrecy: completely decoupled from student identity)
+    const anonymousVoteRef = doc(collection(db, "votes"));
+    transaction.set(anonymousVoteRef, {
+      electionId: targetElectionId,
+      boyCandidateId: boyCandidateId,
+      girlCandidateId: girlCandidateId,
+      castAt: voteTimestamp,
+      castAtMillis: nowTs,
+      receiptToken: receiptToken
+    });
+
+    const electionVoteRef = doc(collection(db, "elections", targetElectionId, "votes"));
+    transaction.set(electionVoteRef, {
+      boyCandidateId: boyCandidateId,
+      girlCandidateId: girlCandidateId,
+      castAt: voteTimestamp,
+      castAtMillis: nowTs,
+      receiptToken: receiptToken
+    });
+  });
+
+  return receiptToken;
+}
+
+// Execute Atomic Transaction Voting from UI
 export async function executeAtomicVote() {
   if (!state.studentData || !state.studentData.rollNo) {
     showAlert("Student authentication error. Please re-verify roll number.", "error");
@@ -170,83 +337,22 @@ export async function executeAtomicVote() {
   }
 
   if (!selectedBoyCandidate || !selectedGirlCandidate) {
-    showAlert("Incomplete ballot. Both seats must be selected.", "error");
+    showAlert("Incomplete ballot. Both 1 Boy CR and 1 Girl CR must be selected.", "error");
     return;
   }
 
   const rollNo = state.studentData.rollNo;
   const boyCandidateId = selectedBoyCandidate.id;
   const girlCandidateId = selectedGirlCandidate.id;
-  const receiptToken = generateReceiptToken(rollNo);
 
   try {
     if (submitSpinner) submitSpinner.classList.remove("hidden");
     if (finalSubmitVoteBtn) finalSubmitVoteBtn.disabled = true;
 
-    // Run Atomic Transaction
-    await runTransaction(db, async (transaction) => {
-      // 1. Verify student whitelist state atomically
-      const studentRef = doc(db, "whitelist", rollNo);
-      const studentDoc = await transaction.get(studentRef);
+    // Execute atomic transaction
+    const receiptToken = await submitBallot(currentElectionId, rollNo, boyCandidateId, girlCandidateId);
 
-      if (!studentDoc.exists()) {
-        throw new Error("Student record not found in whitelist.");
-      }
-
-      if (studentDoc.data().hasVoted === true) {
-        throw new Error("Duplicate Vote Detected: This roll number has already voted.");
-      }
-
-      // 2. Read candidate documents to verify existence
-      const boyRef = doc(db, "candidates", boyCandidateId);
-      const girlRef = doc(db, "candidates", girlCandidateId);
-      const boyDoc = await transaction.get(boyRef);
-      const girlDoc = await transaction.get(girlRef);
-
-      if (!boyDoc.exists() || !girlDoc.exists()) {
-        throw new Error("One or more selected candidate records do not exist.");
-      }
-
-      // 3. Mark student as voted (Zero Duplicate Guarantee)
-      transaction.update(studentRef, {
-        hasVoted: true,
-        votedAt: serverTimestamp(),
-        receiptHash: receiptToken
-      });
-
-      // Synchronize election subcollection whitelist
-      const electionWhitelistRef = doc(db, "elections", "section-a", "whitelist", rollNo);
-      transaction.set(electionWhitelistRef, {
-        hasVoted: true,
-        votedAt: serverTimestamp(),
-        receiptHash: receiptToken
-      }, { merge: true });
-
-      // 4. Decoupled Anonymous Ballot Record (Ballot Secrecy Guarantee)
-      // Generates an independent UUID/hash doc in votes collection WITHOUT student rollNo
-      const anonymousVoteRef = doc(collection(db, "votes"));
-      transaction.set(anonymousVoteRef, {
-        boyCandidateId: boyCandidateId,
-        girlCandidateId: girlCandidateId,
-        castAt: serverTimestamp(),
-        receiptToken: receiptToken
-      });
-
-      // 5. Atomically increment candidate vote counters
-      transaction.update(boyRef, {
-        voteCount: increment(1)
-      });
-      transaction.update(girlRef, {
-        voteCount: increment(1)
-      });
-
-      const electionBoyRef = doc(db, "elections", "section-a", "candidates", boyCandidateId);
-      const electionGirlRef = doc(db, "elections", "section-a", "candidates", girlCandidateId);
-      transaction.set(electionBoyRef, { voteCount: increment(1) }, { merge: true });
-      transaction.set(electionGirlRef, { voteCount: increment(1) }, { merge: true });
-    });
-
-    // Update local state and session
+    // Update local state and persistent session
     if (state.studentData) {
       state.studentData.hasVoted = true;
       state.studentData.receiptHash = receiptToken;
@@ -261,11 +367,11 @@ export async function executeAtomicVote() {
       } catch (e) {}
     }
 
-    // Transaction succeeded!
+    // Transaction succeeded: Close review modal, alert user, display receipt
     closeReviewModal();
-    showAlert("Ballot successfully sealed and cast!", "success");
+    showAlert("Ballot successfully sealed and cast! Cryptographic receipt generated.", "success");
 
-    // Display Success Screen
+    // Display Success Screen with immutable receipt token
     showVoteSuccessScreen(receiptToken);
 
   } catch (error) {

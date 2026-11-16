@@ -87,124 +87,15 @@
             <p class="section-desc">Mirai School of Technology &bull; Official CR Elections</p>
           </div>
           <div class="header-stats-pill">
-            <span class="pill-number">1</span>
+            <span class="pill-number" id="activeElectionsCount">0</span>
             <span class="pill-text">Active Ballots</span>
           </div>
         </div>
 
         <div class="elections-grid" id="electionsGrid">
-          <!-- Featured Election Card: Section A -->
-          <div class="election-card active-card">
-            <div class="election-card-header">
-              <span class="election-badge live-pulse">● Voting Live</span>
-              <span class="election-seat-count">Dual-Seat Election</span>
-            </div>
-
-            <div class="election-card-body">
-              <h3 class="election-title">Section A - CR Election 2026</h3>
-              <p class="election-summary">Official cohort voting for 1 Boy Class Representative and 1 Girl Class Representative.</p>
-
-              <div class="election-meta-specs">
-                <div class="meta-spec-item">
-                  <span class="spec-label">Section</span>
-                  <span class="spec-value">Section A (2026–27)</span>
-                </div>
-                <div class="meta-spec-item">
-                  <span class="spec-label">Seats</span>
-                  <span class="spec-value highlight-cyan">2 Seats (Boy CR + Girl CR)</span>
-                </div>
-                <div class="meta-spec-item">
-                  <span class="spec-label">Integrity</span>
-                  <span class="spec-value">Atomic Concurrency Lock</span>
-                </div>
-                <div class="meta-spec-item">
-                  <span class="spec-label">Ballot Type</span>
-                  <span class="spec-value">Decoupled Anonymous</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="election-card-footer">
-              <button class="btn btn-cyber-primary btn-block enter-election-btn" data-election-id="section-a">
-                <span>Enter Voting Booth 🗳️</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Secondary Election Card: Section B -->
-          <div class="election-card ready-card">
-            <div class="election-card-header">
-              <span class="election-badge scheduled">Scheduled</span>
-              <span class="election-seat-count">Dual-Seat Election</span>
-            </div>
-
-            <div class="election-card-body">
-              <h3 class="election-title">Section B - CR Election 2026</h3>
-              <p class="election-summary">Class Representative elections for Section B cohort. Whitelist import in progress.</p>
-
-              <div class="election-meta-specs">
-                <div class="meta-spec-item">
-                  <span class="spec-label">Section</span>
-                  <span class="spec-value">Section B (2026–27)</span>
-                </div>
-                <div class="meta-spec-item">
-                  <span class="spec-label">Status</span>
-                  <span class="spec-value">Whitelist Staged</span>
-                </div>
-                <div class="meta-spec-item">
-                  <span class="spec-label">Seats</span>
-                  <span class="spec-value highlight-cyan">2 Seats (Boy CR + Girl CR)</span>
-                </div>
-                <div class="meta-spec-item">
-                  <span class="spec-label">Ballot Type</span>
-                  <span class="spec-value">Decoupled Anonymous</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="election-card-footer">
-              <button class="btn btn-cyber-outline btn-block" disabled>
-                <span>Polls Open Soon ⏳</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Tertiary Card: Section C -->
-          <div class="election-card ready-card">
-            <div class="election-card-header">
-              <span class="election-badge draft">Draft</span>
-              <span class="election-seat-count">Dual-Seat Election</span>
-            </div>
-
-            <div class="election-card-body">
-              <h3 class="election-title">Section C - CR Election 2026</h3>
-              <p class="election-summary">Class Representative cohort voting for Section C.</p>
-
-              <div class="election-meta-specs">
-                <div class="meta-spec-item">
-                  <span class="spec-label">Section</span>
-                  <span class="spec-value">Section C (2026–27)</span>
-                </div>
-                <div class="meta-spec-item">
-                  <span class="spec-label">Status</span>
-                  <span class="spec-value">Configuration Phase</span>
-                </div>
-                <div class="meta-spec-item">
-                  <span class="spec-label">Seats</span>
-                  <span class="spec-value highlight-cyan">2 Seats (Boy CR + Girl CR)</span>
-                </div>
-                <div class="meta-spec-item">
-                  <span class="spec-label">Ballot Type</span>
-                  <span class="spec-value">Decoupled Anonymous</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="election-card-footer">
-              <button class="btn btn-cyber-outline btn-block" disabled>
-                <span>Coming Soon</span>
-              </button>
-            </div>
+          <div class="elections-loading" id="electionsLoading">
+            <div class="spinner"></div>
+            <p>Connecting to secure Firestore ledger...</p>
           </div>
         </div>
       </section>
@@ -427,8 +318,8 @@
           <!-- Stage 2: Final Candidate Results (Gated by 2-Stage Reveal Controls) -->
           <div id="sealedResultsNotice" class="sealed-card">
             <div class="sealed-icon">🔒</div>
-            <h3>Candidate Vote Breakdown is Currently Sealed</h3>
-            <p>As per the Mirai Election Protocol, candidate tallies remain cryptographically sealed until polls close and the Election Commission unseals Stage 2 results.</p>
+            <h3 id="sealedNoticeTitle">Candidate Vote Breakdown is Currently Sealed</h3>
+            <p id="sealedNoticeDesc">As per the Mirai Election Protocol, candidate tallies remain cryptographically sealed until polls close and the Election Commission unseals Stage 2 results.</p>
             <div class="stage-steps">
               <div class="step-item active">
                 <div class="step-num">1</div>
@@ -724,7 +615,7 @@
           </div>
           <div class="form-group">
             <label for="adminPasswordInput">Security Key / PIN</label>
-            <input type="password" id="adminPasswordInput" placeholder="MiraiVoteAdmin@2026" autocomplete="current-password" required>
+            <input type="password" id="adminPasswordInput" placeholder="••••••••" autocomplete="current-password" required>
           </div>
           <div class="modal-footer">
             <button type="submit" class="btn btn-cyber-primary btn-block">Authenticate Officer</button>

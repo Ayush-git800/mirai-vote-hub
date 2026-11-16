@@ -1,6 +1,8 @@
 // Mirai Vote Hub - Admin & Election Commission Controller
-// Multi-Tenant Lifecycle, Whitelist Bulk Ingestion & Candidate Management
-// Mirai School of Technology
+export const ADMIN_USERNAME = "admin";
+export const ADMIN_PASSKEY = "admin@123";
+export const ADMIN_USER = ADMIN_USERNAME;
+export const ADMIN_PIN = ADMIN_PASSKEY;
 
 import { db } from "./firebase-config.js";
 import { showAlert } from "./auth.js";
@@ -13,10 +15,6 @@ import {
   writeBatch,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-// Deterministic Admin Credentials
-export const ADMIN_USER = "admin";
-export const ADMIN_PIN = "MiraiVoteAdmin@2026";
 
 // Whitelist Ingestion Elements
 const whitelistFileInput = document.getElementById("whitelistFileInput");
@@ -46,12 +44,12 @@ const adminGirlCandidateList = document.getElementById("adminGirlCandidateList")
 // ============================================================================
 
 export function authenticateAdmin(username, password) {
-  const cleanUser = (username || "").trim().toLowerCase();
+  const cleanUser = (username || "").trim();
   const cleanPin = (password || "").trim();
 
-  // Deterministic validation: checks against ADMIN_USER and ADMIN_PIN
-  const isUserValid = cleanUser === ADMIN_USER || cleanUser === "admin@mirai.ac.in" || cleanUser === "admin@miraivote.hub";
-  const isPinValid = cleanPin === ADMIN_PIN;
+  // Deterministic validation: strictly verified against code-locked constants
+  const isUserValid = cleanUser === ADMIN_USERNAME;
+  const isPinValid = cleanPin === ADMIN_PASSKEY;
 
   if (isUserValid && isPinValid) {
     sessionStorage.setItem("isAdminAuthenticated", "true");
