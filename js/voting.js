@@ -29,6 +29,47 @@ export function getCurrentElectionId() {
   return currentElectionId;
 }
 
+// ============================================================================
+// Top Navbar Dynamic Election Status Pill Controller
+// ============================================================================
+export function updateGlobalElectionStatusPill(activeCount) {
+  const pill = document.getElementById("globalElectionStatusPill") || document.getElementById("electionStatusPill");
+  const label = document.getElementById("globalElectionStatusLabel") || document.getElementById("electionStatusLabel");
+  const dot = document.getElementById("globalStatusDot") || pill?.querySelector(".status-dot");
+
+  if (!pill || !label) return;
+
+  if (activeCount > 0) {
+    label.textContent = "Election Active";
+    pill.classList.remove("neutral", "inactive");
+    pill.classList.add("active");
+    pill.style.borderColor = "rgba(16, 185, 129, 0.4)";
+    pill.style.background = "rgba(16, 185, 129, 0.1)";
+    label.style.color = "#10b981";
+
+    if (dot) {
+      dot.className = "status-dot pulsing";
+      dot.style.background = "#10b981";
+      dot.style.boxShadow = "0 0 10px rgba(16, 185, 129, 0.7)";
+      dot.style.animation = "pulseGreen 1.8s infinite";
+    }
+  } else {
+    label.textContent = "No Active Elections";
+    pill.classList.remove("active");
+    pill.classList.add("neutral");
+    pill.style.borderColor = "rgba(100, 116, 139, 0.3)";
+    pill.style.background = "rgba(100, 116, 139, 0.08)";
+    label.style.color = "#64748b";
+
+    if (dot) {
+      dot.className = "status-dot";
+      dot.style.background = "#64748b";
+      dot.style.boxShadow = "none";
+      dot.style.animation = "none";
+    }
+  }
+}
+
 // Elements
 const boyCandidatesGrid = document.getElementById("boyCandidatesGrid");
 const girlCandidatesGrid = document.getElementById("girlCandidatesGrid");

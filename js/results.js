@@ -2,7 +2,8 @@
 // Mirai School of Technology
 
 import { db } from "./firebase-config.js";
-import { setCurrentElectionId } from "./voting.js";
+import { setCurrentElectionId, updateGlobalElectionStatusPill } from "./voting.js";
+export { updateGlobalElectionStatusPill };
 import { state, updateElectionCardsEligibility } from "./auth.js";
 import {
   collection,
@@ -29,7 +30,6 @@ const sealedResultsNotice = document.getElementById("sealedResultsNotice");
 const unsealedResultsContainer = document.getElementById("unsealedResultsContainer");
 const stageIndicatorPill = document.getElementById("stageIndicatorPill");
 const currentStageText = document.getElementById("currentStageText");
-const electionStatusLabel = document.getElementById("electionStatusLabel");
 const boyResultsBody = document.getElementById("boyResultsBody");
 const girlResultsBody = document.getElementById("girlResultsBody");
 const boyWinnerPill = document.getElementById("boyWinnerPill");
@@ -82,23 +82,6 @@ export function initTelemetryAndResults() {
 function applyElectionStateAndStage(status, stage) {
   const isEndedOrConcluded = status === "ended" || (status === "concluded" && stage === 1);
   const isPublished = status === "published" || stage === 2;
-
-  // Header status pill
-  if (electionStatusLabel) {
-    if (isPublished) {
-      electionStatusLabel.textContent = "Results Published";
-      electionStatusLabel.className = "status-indicator live";
-    } else if (isEndedOrConcluded) {
-      electionStatusLabel.textContent = "Election Sealed";
-      electionStatusLabel.className = "status-indicator";
-    } else if (status === "draft" || status === "ready") {
-      electionStatusLabel.textContent = "Election Draft";
-      electionStatusLabel.className = "status-indicator";
-    } else {
-      electionStatusLabel.textContent = "Election Active";
-      electionStatusLabel.className = "status-indicator live";
-    }
-  }
 
   // 1. Sealed Audit State ("ended" or "concluded" with stage 1)
   if (isEndedOrConcluded && !isPublished) {
@@ -305,6 +288,7 @@ export function subscribeToElections() {
 
   onSnapshot(electionsCol, (snapshot) => {
     if (snapshot.empty) {
+      updateGlobalElectionStatusPill(0);
       electionsGrid.innerHTML = `
         <div class="empty-elections-card col-span-full">
           <div class="empty-icon">🗳️</div>
@@ -430,6 +414,9 @@ export function subscribeToElections() {
       electionsGrid.appendChild(card);
     });
 
+    // Update global top navbar election status pill dynamically
+    updateGlobalElectionStatusPill(activeCount);
+
     if (activeCountEl) {
       activeCountEl.textContent = activeCount.toString();
     }
@@ -440,6 +427,7 @@ export function subscribeToElections() {
     }
   }, (err) => {
     console.error("Error subscribing to elections collection:", err);
+    updateGlobalElectionStatusPill(0);
     if (electionsGrid) {
       electionsGrid.innerHTML = `
         <div class="empty-elections-card col-span-full">
