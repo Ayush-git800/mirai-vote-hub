@@ -17,6 +17,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <link rel="icon" type="image/png" href="assets/logo.png">
+  <!-- jsPDF Library for Institutional Winner Certificates -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
   <!-- Global Application Wrapper -->
@@ -71,7 +73,7 @@
         </button>
         <button class="nav-tab" data-tab="resultsTab" id="tabResultsBtn">
           <span class="tab-icon">📊</span>
-          <span>Live Telemetry &amp; Results</span>
+          <span>Certified Results</span>
         </button>
         <button class="nav-tab admin-only hidden" data-tab="adminTab" id="tabAdminBtn">
           <span class="tab-icon">⚙️</span>
@@ -180,17 +182,23 @@
           <div class="section-header">
             <div class="header-left">
               <span class="section-tag neon-cyan">OFFICIAL DUAL-SEAT BALLOT</span>
-              <h2>Section A - CR Election 2026</h2>
+              <h2 id="ballotElectionTitle">Class Representative Election 2026</h2>
               <p class="section-desc">Mirai School of Technology &bull; Official CR Elections</p>
             </div>
-            <div class="voter-status-card" id="voterStatusCard">
-              <div class="status-indicator">
-                <span class="pulse-green"></span>
-                <span class="status-title">Eligible Voter</span>
+            <div class="header-right-ballot" style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+              <div id="ballotTimerBadge" class="ballot-timer-badge hidden">
+                <span class="timer-icon">⏳</span>
+                <span id="ballotTimerText">Calculating time...</span>
               </div>
-              <div class="voter-details">
-                <span id="ballotRollNo">Roll: --</span> &bull; 
-                <span id="ballotDept">Cohort: Section A</span>
+              <div class="voter-status-card" id="voterStatusCard">
+                <div class="status-indicator">
+                  <span class="pulse-green"></span>
+                  <span class="status-title">Eligible Voter</span>
+                </div>
+                <div class="voter-details">
+                  <span id="ballotRollNo">Roll: --</span> &bull; 
+                  <span id="ballotDept">Cohort: Section A</span>
+                </div>
               </div>
             </div>
           </div>
@@ -282,74 +290,80 @@
         </div>
       </section>
 
-      <!-- VIEW 3: Live Telemetry & 2-Stage Results (#resultsView / #resultsSection) -->
+      <!-- VIEW 3: Certified Results & Auditing (#resultsView / #resultsSection) -->
       <section id="resultsView" class="results-section hidden">
         <div id="resultsSection" class="results-inner-wrapper">
           <div class="section-header">
             <div class="header-left">
               <span class="section-tag neon-cyan">OFFICIAL AUDITING</span>
-              <h2>Election Telemetry &amp; Certified Results</h2>
+              <h2>Certified Election Results &amp; Audit</h2>
               <p class="section-desc">Mirai School of Technology &bull; Official CR Elections</p>
             </div>
             <div class="stage-indicator-pill" id="stageIndicatorPill">
-              <span id="currentStageText">Stage 1: Live Turnout Telemetry</span>
+              <span id="currentStageText">Ballot Box Sealed &bull; Audit in Progress</span>
             </div>
           </div>
 
-          <!-- Stage 1: Turnout Meter Dashboard -->
-          <div class="results-grid">
-            <div class="telemetry-card">
-              <div class="telemetry-header">
-                <div>
-                  <span class="metric-title">Voter Turnout Rate</span>
-                  <p class="metric-subtitle">Real-time attendance percentage across certified cohort whitelist</p>
-                </div>
-                <span class="metric-percentage" id="turnoutPercentage">0.0%</span>
-              </div>
-              <div class="progress-bar-container">
-                <div class="progress-bar-fill" id="turnoutProgressBar" style="width: 0%;"></div>
-              </div>
-              <div class="telemetry-stats">
-                <div class="stat-col">
-                  <span class="stat-num" id="statVotesCast">0</span>
-                  <span class="stat-lbl">Votes Cast</span>
-                </div>
-                <div class="stat-col">
-                  <span class="stat-num" id="statTotalVoters">0</span>
-                  <span class="stat-lbl">Whitelisted Eligible Voters</span>
-                </div>
-                <div class="stat-col">
-                  <span class="stat-num" id="statTurnoutRemaining">0</span>
-                  <span class="stat-lbl">Pending Eligible Voters</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Stage 2: Final Candidate Results (Gated by 2-Stage Reveal Controls) -->
+          <!-- Sealed Results Notice (Shown during Active & Ended / Auditing phases - Zero Partial Leaks) -->
           <div id="sealedResultsNotice" class="sealed-card">
             <div class="sealed-icon">🔒</div>
-            <h3 id="sealedNoticeTitle">Candidate Vote Breakdown is Currently Sealed</h3>
-            <p id="sealedNoticeDesc">As per the Mirai Election Protocol, candidate tallies remain cryptographically sealed until polls close and the Election Commission unseals Stage 2 results.</p>
-            <div class="stage-steps">
-              <div class="step-item active">
-                <div class="step-num">1</div>
-                <div class="step-label">Live Turnout (Active)</div>
-              </div>
-              <div class="step-line"></div>
-              <div class="step-item">
-                <div class="step-num">2</div>
-                <div class="step-label">Full Certified Reveal (Sealed)</div>
-              </div>
-            </div>
+            <h3 id="sealedNoticeTitle">Ballot Box Sealed &bull; Official Audit In Progress</h3>
+            <p id="sealedNoticeDesc">In accordance with Mirai Election Commission integrity protocols, all votes remain sealed and zero live tallies or partial previews are disclosed until certified auditing concludes and official results are published.</p>
           </div>
 
+          <!-- Unsealed Results Container (Revealed ONLY after Official Commission Publication) -->
           <div id="unsealedResultsContainer" class="unsealed-results hidden">
+            <!-- Top Controls Bar with Audit Export -->
+            <div class="results-actions-bar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+              <div>
+                <span class="section-tag neon-cyan" style="display:inline-block;">CERTIFIED COMMISSION LEDGER</span>
+                <p style="font-size:0.85rem; color:var(--text-secondary); margin:0;">Official audit verified. Decoupled single-vote tally finalized.</p>
+              </div>
+              <button id="exportAuditCsvBtn" class="btn btn-cyber-primary btn-sm">
+                <span>📥 Export Certified Audit (CSV)</span>
+              </button>
+            </div>
+
+            <!-- Certified Turnout Meter Dashboard -->
+            <div class="results-grid mb-4">
+              <div class="telemetry-card">
+                <div class="telemetry-header">
+                  <div>
+                    <span class="metric-title">Certified Voter Turnout</span>
+                    <p class="metric-subtitle">Final verified attendance percentage across certified cohort whitelist</p>
+                  </div>
+                  <span class="metric-percentage" id="turnoutPercentage">0.0%</span>
+                </div>
+                <div class="progress-bar-container">
+                  <div class="progress-bar-fill" id="turnoutProgressBar" style="width: 0%;"></div>
+                </div>
+                <div class="telemetry-stats">
+                  <div class="stat-col">
+                    <span class="stat-num" id="statVotesCast">0</span>
+                    <span class="stat-lbl">Total Ballots Cast</span>
+                  </div>
+                  <div class="stat-col">
+                    <span class="stat-num" id="statTotalVoters">0</span>
+                    <span class="stat-lbl">Whitelisted Eligible Voters</span>
+                  </div>
+                  <div class="stat-col">
+                    <span class="stat-num" id="statTurnoutRemaining">0</span>
+                    <span class="stat-lbl">Abstained / Uncast</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- Boy CR Certified Results -->
             <div class="result-category-block boy-border">
-              <div class="cat-header">
-                <h3>🏆 Certified Result: Boy Class Representative (Category A)</h3>
-                <span class="winner-pill" id="boyWinnerPill">Awaiting Certification</span>
+              <div class="cat-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem;">
+                <div>
+                  <h3>🏆 Certified Result: Boy Class Representative (Category A)</h3>
+                  <span class="winner-pill" id="boyWinnerPill">Awaiting Certification</span>
+                </div>
+                <button id="downloadBoyCertBtn" class="btn btn-certificate hidden">
+                  <span>📜 Download Winner Certificate (PDF)</span>
+                </button>
               </div>
               <div class="results-table-container">
                 <table class="results-table" id="boyResultsTable">
@@ -371,9 +385,14 @@
 
             <!-- Girl CR Certified Results -->
             <div class="result-category-block girl-border">
-              <div class="cat-header">
-                <h3>🏆 Certified Result: Girl Class Representative (Category B)</h3>
-                <span class="winner-pill" id="girlWinnerPill">Awaiting Certification</span>
+              <div class="cat-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem;">
+                <div>
+                  <h3>🏆 Certified Result: Girl Class Representative (Category B)</h3>
+                  <span class="winner-pill" id="girlWinnerPill">Awaiting Certification</span>
+                </div>
+                <button id="downloadGirlCertBtn" class="btn btn-certificate hidden">
+                  <span>📜 Download Winner Certificate (PDF)</span>
+                </button>
               </div>
               <div class="results-table-container">
                 <table class="results-table" id="girlResultsTable">
@@ -393,6 +412,8 @@
               </div>
             </div>
           </div>
+        </div>
+      </section>
         </div>
       </section>
 
@@ -427,6 +448,17 @@
                 <div class="form-group">
                   <label for="newElectionSection">Class Section / Cohort</label>
                   <input type="text" id="newElectionSection" placeholder="e.g. Section A" required>
+                </div>
+                <div class="form-group">
+                  <label for="newElectionMode">Voting Duration Mode</label>
+                  <select id="newElectionMode" class="form-select">
+                    <option value="manual">Manual (Infinite until closed by Admin)</option>
+                    <option value="timed">Timed Auto-Lock (Set minutes)</option>
+                  </select>
+                </div>
+                <div class="form-group hidden" id="electionDurationGroup">
+                  <label for="newElectionDuration">Voting Duration (Minutes)</label>
+                  <input type="number" id="newElectionDuration" min="1" max="1440" value="60" placeholder="e.g. 60">
                 </div>
                 <button type="submit" id="createElectionBtn" class="btn btn-cyber-primary btn-block">
                   Create &amp; Register Election
@@ -573,6 +605,54 @@
                 <button id="purgeElectionDataBtn" class="btn btn-danger btn-sm">
                   Reset Election Ballot Ledger (Zero Baseline)
                 </button>
+              </div>
+            </div>
+
+            <!-- Module E: Voter Audit & Roll Lookup -->
+            <div class="admin-card">
+              <div class="admin-card-header">
+                <h3>🔍 Voter Audit &amp; Lookup</h3>
+                <span class="card-badge">Integrity Check</span>
+              </div>
+              <p class="admin-help-text">Search any student roll number to verify whitelisting status, vote state, and receipt timestamp.</p>
+              
+              <div class="voter-lookup-box">
+                <div class="input-with-button">
+                  <input type="text" id="voterLookupRollInput" placeholder="Enter Roll No (e.g. 23MST001)" class="mono">
+                  <button id="voterLookupBtn" class="btn btn-cyber-primary" type="button">Verify Status</button>
+                </div>
+                <div id="voterLookupResult" class="voter-lookup-result hidden"></div>
+                <button id="emergencyResetVoterBtn" class="btn btn-danger btn-sm mt-3 hidden" type="button">
+                  ⚠️ Emergency Reset Voter Ballot
+                </button>
+              </div>
+            </div>
+
+            <!-- Module F: Election Management Ledger & Certified Export -->
+            <div class="admin-card col-span-2">
+              <div class="admin-card-header">
+                <h3>📋 Election Management Ledger</h3>
+                <button id="adminExportCsvBtn" class="btn btn-cyber-outline btn-sm" type="button">
+                  📊 Export Certified Audit (CSV)
+                </button>
+              </div>
+              <p class="admin-help-text">Oversee all registered elections, inspect mode and timers, change lifecycle status, archive or delete test cohorts.</p>
+              
+              <div class="results-table-container mt-3">
+                <table class="results-table" id="adminElectionsTable">
+                  <thead>
+                    <tr>
+                      <th>Election</th>
+                      <th>Section</th>
+                      <th>Mode &amp; Timer</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="adminElectionsTableBody">
+                    <!-- Populated dynamically -->
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>

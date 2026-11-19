@@ -2047,3 +2047,156 @@ p {
   background: rgba(219, 39, 119, 0.08);
   color: var(--accent-magenta);
 }
+
+/* ==========================================================================
+   Admin QoL, Mode Badges, Voter Audit & Winner Certificate Styles
+   ========================================================================== */
+
+/* Ballot Header Timer Badge */
+.ballot-timer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.35rem 0.85rem;
+  border-radius: var(--radius-full);
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid var(--neon-amber);
+  color: var(--neon-amber);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.25);
+}
+
+.ballot-timer-badge.expired {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: var(--neon-rose);
+  color: var(--neon-rose);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.25);
+}
+
+/* Election Mode Badges */
+.mode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.mode-badge.manual {
+  background: rgba(0, 240, 255, 0.1);
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  color: var(--neon-cyan);
+}
+
+.mode-badge.timed {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: var(--neon-amber);
+}
+
+/* Voter Lookup Box */
+.voter-lookup-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.input-with-button {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.input-with-button input {
+  flex: 1;
+}
+
+.voter-lookup-result {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  margin-top: 0.5rem;
+}
+
+.voter-status-badge {
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.voter-status-badge.not-whitelisted {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid var(--neon-rose);
+  color: var(--neon-rose);
+}
+
+.voter-status-badge.pending {
+  background: rgba(0, 240, 255, 0.15);
+  border: 1px solid var(--neon-cyan);
+  color: var(--neon-cyan);
+}
+
+.voter-status-badge.voted {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid var(--neon-emerald);
+  color: var(--neon-emerald);
+}
+
+/* Certificate Download Button */
+.btn-certificate {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.95rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(217, 119, 6, 0.1));
+  border: 1px solid rgba(245, 158, 11, 0.6);
+  color: #fbbf24;
+  cursor: pointer;
+  transition: var(--transition);
+  box-shadow: 0 0 15px rgba(245, 158, 11, 0.2);
+}
+
+.btn-certificate:hover {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.35), rgba(217, 119, 6, 0.2));
+  border-color: #f59e0b;
+  transform: translateY(-1px);
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.35);
+}
+
+[data-theme="light"] .ballot-timer-badge {
+  background: rgba(217, 119, 6, 0.1);
+  border-color: #d97706;
+  color: #b45309;
+}
+
+[data-theme="light"] .mode-badge.manual {
+  background: rgba(2, 132, 199, 0.1);
+  border-color: rgba(2, 132, 199, 0.25);
+  color: #0284c7;
+}
+
+[data-theme="light"] .mode-badge.timed {
+  background: rgba(217, 119, 6, 0.1);
+  border-color: rgba(217, 119, 6, 0.3);
+  color: #b45309;
+}
+
+[data-theme="light"] .btn-certificate {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border-color: #d97706;
+  color: #92400e;
+  box-shadow: 0 2px 6px rgba(217, 119, 6, 0.15);
+}
+

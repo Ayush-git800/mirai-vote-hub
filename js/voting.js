@@ -7,6 +7,7 @@ import {
   collection,
   getDocs,
   doc,
+  getDoc,
   runTransaction,
   increment,
   serverTimestamp
@@ -20,6 +21,49 @@ let candidatesCache = {
   boy_cr: [],
   girl_cr: []
 };
+let ballotTimerInterval = null;
+
+export function updateBallotCountdown(closesAt) {
+  const badge = document.getElementById("ballotTimerBadge");
+  if (!badge) return;
+
+  if (ballotTimerInterval) {
+    clearInterval(ballotTimerInterval);
+    ballotTimerInterval = null;
+  }
+
+  if (!closesAt) {
+    badge.innerHTML = "<span>⏳ Open Voting (Manual Mode)</span>";
+    badge.className = "ballot-timer-badge";
+    return;
+  }
+
+  function tick() {
+    const diff = Number(closesAt) - Date.now();
+    if (diff <= 0) {
+      badge.innerHTML = "<span>🛑 Polls Closed (Time Expired)</span>";
+      badge.className = "ballot-timer-badge expired";
+      if (ballotTimerInterval) {
+        clearInterval(ballotTimerInterval);
+        ballotTimerInterval = null;
+      }
+      const reviewVoteBtn = document.getElementById("reviewVoteBtn");
+      if (reviewVoteBtn) {
+        reviewVoteBtn.disabled = true;
+        reviewVoteBtn.textContent = "Polls Closed • Voting Concluded";
+      }
+      return;
+    }
+
+    const mins = Math.floor(diff / 60000);
+    const secs = Math.floor((diff % 60000) / 1000);
+    badge.innerHTML = `<span>⏳ Ends in ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}</span>`;
+    badge.className = "ballot-timer-badge";
+  }
+
+  tick();
+  ballotTimerInterval = setInterval(tick, 1000);
+}
 
 export function setCurrentElectionId(id) {
   if (id) currentElectionId = id;
@@ -260,14 +304,27 @@ export async function submitBallot(electionId, studentId, boyCandidateId, girlCa
 
     // Gate A: Target election status must strictly be "active"
     let status = "active";
+    let votingMode = "manual";
+    let closesAt = null;
+
     if (electionSnap.exists()) {
-      status = electionSnap.data().status;
+      const edata = electionSnap.data();
+      status = edata.status;
+      votingMode = edata.votingMode || "manual";
+      closesAt = edata.closesAt || null;
     } else if (metaSnap.exists()) {
-      status = metaSnap.data().status;
+      const mdata = metaSnap.data();
+      status = mdata.status;
+      votingMode = mdata.votingMode || "manual";
+      closesAt = mdata.closesAt || null;
     }
 
     if (status !== "active") {
       throw new Error(`Election is currently '${status}'. Ballots can only be cast when election status is 'active'.`);
+    }
+
+    if (votingMode === "timed" && closesAt && Date.now() >= closesAt) {
+      throw new Error("Election voting period has expired. The ballot box is sealed.");
     }
 
     // Gate B: Voter whitelist verification & Zero Duplicate Guarantee
@@ -453,5 +510,18 @@ document.addEventListener("DOMContentLoaded", () => {
   // Load candidates when ballot unlocks
   window.addEventListener("ballotUnlocked", () => {
     loadCandidates();
+  });
+
+  // Dynamic election selected from card
+  window.addEventListener("electionSelected", (e) => {
+    const meta = e.detail;
+    if (!meta) return;
+    const titleEl = document.getElementById("ballotElectionTitle");
+    if (titleEl && meta.title) titleEl.textContent = meta.title;
+    if (meta.votingMode === "timed" && meta.closesAt) {
+      updateBallotCountdown(meta.closesAt);
+    } else {
+      updateBallotCountdown(null);
+    }
   });
 });

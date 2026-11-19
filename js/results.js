@@ -8,6 +8,7 @@ import { state, updateElectionCardsEligibility } from "./auth.js";
 import {
   collection,
   doc,
+  getDoc,
   onSnapshot,
   getDocs,
   query,
@@ -19,6 +20,10 @@ let electionStage = 1; // 1 = Turnout Only, 2 = Full Results
 let electionStatus = "active"; // "draft" | "active" | "ended" | "published" | "concluded"
 let totalWhitelistCount = 0;
 let totalVotesCast = 0;
+
+let certifiedBoyWinner = null;
+let certifiedGirlWinner = null;
+let currentElectionMetadata = { title: "Section A - CR Election 2026", section: "Section A" };
 
 // UI Elements
 const turnoutPercentage = document.getElementById("turnoutPercentage");
@@ -36,6 +41,9 @@ const boyWinnerPill = document.getElementById("boyWinnerPill");
 const girlWinnerPill = document.getElementById("girlWinnerPill");
 const sealedNoticeTitle = document.getElementById("sealedNoticeTitle");
 const sealedNoticeDesc = document.getElementById("sealedNoticeDesc");
+const downloadBoyCertBtn = document.getElementById("downloadBoyCertBtn");
+const downloadGirlCertBtn = document.getElementById("downloadGirlCertBtn");
+const exportAuditCsvBtn = document.getElementById("exportAuditCsvBtn");
 
 // ============================================================================
 // 1. Two-Stage Audited Results & Telemetry Engine
@@ -94,9 +102,12 @@ function applyElectionStateAndStage(status, stage) {
       stageIndicatorPill.style.color = "var(--neon-amber)";
     }
 
-    // Keep candidate breakdown sealed
+    // Keep candidate breakdown and turnout completely sealed
     if (sealedResultsNotice) sealedResultsNotice.classList.remove("hidden");
     if (unsealedResultsContainer) unsealedResultsContainer.classList.add("hidden");
+
+    if (downloadBoyCertBtn) downloadBoyCertBtn.classList.add("hidden");
+    if (downloadGirlCertBtn) downloadGirlCertBtn.classList.add("hidden");
 
     if (sealedNoticeTitle) {
       sealedNoticeTitle.textContent = "Ballot box sealed. Official audit underway.";
@@ -119,26 +130,33 @@ function applyElectionStateAndStage(status, stage) {
     // Unseal results container
     if (sealedResultsNotice) sealedResultsNotice.classList.add("hidden");
     if (unsealedResultsContainer) unsealedResultsContainer.classList.remove("hidden");
+
+    if (certifiedBoyWinner && downloadBoyCertBtn) downloadBoyCertBtn.classList.remove("hidden");
+    if (certifiedGirlWinner && downloadGirlCertBtn) downloadGirlCertBtn.classList.remove("hidden");
   }
-  // 3. Active / Polling State
+  // 3. Active / Polling State (Strict no-live-results privacy)
   else {
     if (currentStageText) {
-      currentStageText.textContent = "Stage 1: Live Turnout Telemetry";
+      currentStageText.textContent = "Voting Active • Ballots Encrypted";
     }
     if (stageIndicatorPill) {
-      stageIndicatorPill.innerHTML = `<span class="pulse-cyan">●</span> Stage 1: Live Turnout Telemetry`;
+      stageIndicatorPill.innerHTML = `<span class="pulse-cyan">●</span> Voting Active (Ballots Sealed)`;
       stageIndicatorPill.style.borderColor = "var(--neon-cyan)";
       stageIndicatorPill.style.color = "var(--neon-cyan)";
     }
 
+    // Strictly seal candidate tallies & live turnout until Commission publication
     if (sealedResultsNotice) sealedResultsNotice.classList.remove("hidden");
     if (unsealedResultsContainer) unsealedResultsContainer.classList.add("hidden");
 
+    if (downloadBoyCertBtn) downloadBoyCertBtn.classList.add("hidden");
+    if (downloadGirlCertBtn) downloadGirlCertBtn.classList.add("hidden");
+
     if (sealedNoticeTitle) {
-      sealedNoticeTitle.textContent = "Candidate Vote Breakdown is Currently Sealed";
+      sealedNoticeTitle.textContent = "Ballot Box Cryptographically Sealed";
     }
     if (sealedNoticeDesc) {
-      sealedNoticeDesc.textContent = "As per the Mirai Election Protocol, candidate tallies remain cryptographically sealed until polls close and the Election Commission unseals Stage 2 results.";
+      sealedNoticeDesc.textContent = "Voting is currently in progress. In strict compliance with Mirai Commission privacy and anti-bandwagon standards, zero live turnout or candidate tallies are published until polls officially close and the Election Commission unseals certified results.";
     }
   }
 }
@@ -195,6 +213,24 @@ function subscribeToCandidates() {
     // Sort descending by voteCount
     boys.sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0));
     girls.sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0));
+
+    // Track certified winners for certificate generation
+    const isPublished = electionStatus === "published" || electionStage === 2;
+    if (boys.length > 0 && boys[0].voteCount > 0) {
+      certifiedBoyWinner = boys[0];
+      if (isPublished && downloadBoyCertBtn) downloadBoyCertBtn.classList.remove("hidden");
+    } else {
+      certifiedBoyWinner = null;
+      if (downloadBoyCertBtn) downloadBoyCertBtn.classList.add("hidden");
+    }
+
+    if (girls.length > 0 && girls[0].voteCount > 0) {
+      certifiedGirlWinner = girls[0];
+      if (isPublished && downloadGirlCertBtn) downloadGirlCertBtn.classList.remove("hidden");
+    } else {
+      certifiedGirlWinner = null;
+      if (downloadGirlCertBtn) downloadGirlCertBtn.classList.add("hidden");
+    }
 
     renderResultsTable(boys, boyResultsBody, boyWinnerPill, "Boy CR");
     renderResultsTable(girls, girlResultsBody, girlWinnerPill, "Girl CR");
@@ -350,9 +386,19 @@ export function subscribeToElections() {
       card.className = `election-card ${status === "active" ? "active-card" : "ready-card"}`;
       card.dataset.electionId = data.id;
 
+      let modeBadgeHtml = "";
+      if (data.votingMode === "timed") {
+        modeBadgeHtml = `<span class="mode-badge timed card-timer-pill" data-closes-at="${data.closesAt || ''}">⏱️ Timed</span>`;
+      } else {
+        modeBadgeHtml = `<span class="mode-badge manual">♾️ Manual</span>`;
+      }
+
       card.innerHTML = `
         <div class="election-card-header">
-          ${badgeHtml}
+          <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+            ${badgeHtml}
+            ${modeBadgeHtml}
+          </div>
           <span class="election-seat-count">Dual-Seat Election</span>
         </div>
 
@@ -370,8 +416,8 @@ export function subscribeToElections() {
               <span class="spec-value highlight-cyan">2 Seats (Boy CR + Girl CR)</span>
             </div>
             <div class="meta-spec-item">
-              <span class="spec-label">Integrity</span>
-              <span class="spec-value">Atomic Concurrency Lock</span>
+              <span class="spec-label">Voting Mode</span>
+              <span class="spec-value mode-spec-value">${data.votingMode === 'timed' ? (data.closesAt ? `Auto-Lock (${data.durationMinutes || 60}m)` : `${data.durationMinutes || 60}m Timed`) : 'Manual (Admin Closed)'}</span>
             </div>
             <div class="meta-spec-item">
               <span class="spec-label">Ballot Type</span>
@@ -390,6 +436,17 @@ export function subscribeToElections() {
       if (enterBtn) {
         enterBtn.addEventListener("click", () => {
           setCurrentElectionId(data.id);
+          currentElectionMetadata = {
+            id: data.id,
+            title: title,
+            section: section,
+            votingMode: data.votingMode || "manual",
+            closesAt: data.closesAt || null,
+            durationMinutes: data.durationMinutes || 60
+          };
+          const titleEl = document.getElementById("ballotElectionTitle");
+          if (titleEl) titleEl.textContent = title;
+          window.dispatchEvent(new CustomEvent("electionSelected", { detail: currentElectionMetadata }));
           const tabBallotBtn = document.getElementById("tabBallotBtn");
           if (tabBallotBtn) tabBallotBtn.click();
         });
@@ -398,6 +455,11 @@ export function subscribeToElections() {
       const viewAuditBtn = card.querySelector(".view-audit-btn");
       if (viewAuditBtn) {
         viewAuditBtn.addEventListener("click", () => {
+          currentElectionMetadata = {
+            id: data.id,
+            title: title,
+            section: section
+          };
           const tabResultsBtn = document.getElementById("tabResultsBtn");
           if (tabResultsBtn) tabResultsBtn.click();
         });
@@ -406,6 +468,11 @@ export function subscribeToElections() {
       const viewResultsBtn = card.querySelector(".view-results-btn");
       if (viewResultsBtn) {
         viewResultsBtn.addEventListener("click", () => {
+          currentElectionMetadata = {
+            id: data.id,
+            title: title,
+            section: section
+          };
           const tabResultsBtn = document.getElementById("tabResultsBtn");
           if (tabResultsBtn) tabResultsBtn.click();
         });
@@ -438,6 +505,287 @@ export function subscribeToElections() {
       `;
     }
   });
+}
+
+// Live Card Timer Updater
+let cardTimerIntervalStarted = false;
+function startCardTimerUpdater() {
+  if (cardTimerIntervalStarted) return;
+  cardTimerIntervalStarted = true;
+  setInterval(() => {
+    const pills = document.querySelectorAll(".card-timer-pill");
+    const now = Date.now();
+    pills.forEach(pill => {
+      const closesAt = Number(pill.dataset.closesAt);
+      if (!closesAt) {
+        pill.textContent = "⏱️ Timed";
+        return;
+      }
+      const diff = closesAt - now;
+      if (diff <= 0) {
+        pill.textContent = "🛑 Polls Expired";
+        pill.classList.add("expired");
+      } else {
+        const mins = Math.floor(diff / 60000);
+        const secs = Math.floor((diff % 60000) / 1000);
+        pill.textContent = `⏱️ ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+      }
+    });
+  }, 1000);
+}
+
+// ============================================================================
+// 3. Automated PDF Winner Certificate Generator (jsPDF + Mirai Logo)
+// ============================================================================
+
+async function getLogoDataUrl() {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth || img.width;
+      canvas.height = img.naturalHeight || img.height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+      resolve({
+        dataUrl: canvas.toDataURL("image/png"),
+        width: canvas.width,
+        height: canvas.height
+      });
+    };
+    img.onerror = (e) => reject(e);
+    img.src = "assets/mirai-logo.png";
+  });
+}
+
+export async function generateWinnerCertificate({ winnerName, position, section, electionTitle, auditId }) {
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    alert("jsPDF library is still loading. Please try again in a moment.");
+    return;
+  }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({
+    orientation: "landscape",
+    unit: "mm",
+    format: "a4" // 297 x 210 mm
+  });
+
+  // Background Parchment #fcfbf7
+  doc.setFillColor(252, 251, 247);
+  doc.rect(0, 0, 297, 210, "F");
+
+  // Outer Border: Deep Navy (#0f172a)
+  doc.setDrawColor(15, 23, 42);
+  doc.setLineWidth(1.5);
+  doc.rect(8, 8, 281, 194);
+
+  // Inner Border: Warm Gold (#d97706)
+  doc.setDrawColor(217, 119, 6);
+  doc.setLineWidth(0.6);
+  doc.rect(11, 11, 275, 188);
+
+  // Corner decorative flourishes
+  doc.setDrawColor(217, 119, 6);
+  doc.setLineWidth(1);
+  doc.line(14, 14, 24, 14);
+  doc.line(14, 14, 14, 24);
+  doc.line(283, 14, 273, 14);
+  doc.line(283, 14, 283, 24);
+  doc.line(14, 196, 24, 196);
+  doc.line(14, 196, 14, 186);
+  doc.line(283, 196, 273, 196);
+  doc.line(283, 196, 283, 186);
+
+  // Render centered official Mirai logo (without duplicate text beneath)
+  try {
+    const logoInfo = await getLogoDataUrl();
+    const logoWidth = 75;
+    const logoHeight = (logoInfo.height / logoInfo.width) * logoWidth;
+    const logoX = (297 - logoWidth) / 2;
+    doc.addImage(logoInfo.dataUrl, "PNG", logoX, 18, logoWidth, logoHeight);
+  } catch (err) {
+    console.warn("Could not embed logo image in certificate:", err);
+  }
+
+  // Certificate Headline
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(22);
+  doc.setTextColor(15, 23, 42);
+  doc.text("CERTIFICATE OF ELECTION", 148.5, 48, { align: "center" });
+
+  doc.setFont("helvetica", "italic");
+  doc.setFontSize(9.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text("OFFICIAL INSTRUMENT OF RATIFICATION & STUDENT COMMISSION APPOINTMENT", 148.5, 54, { align: "center" });
+
+  // Divider ribbon line
+  doc.setDrawColor(217, 119, 6);
+  doc.setLineWidth(0.75);
+  doc.line(85, 58, 212, 58);
+
+  // Certificate Body
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(12);
+  doc.setTextColor(51, 65, 85);
+  doc.text("This is to formally certify that", 148.5, 72, { align: "center" });
+
+  // Winner Name
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(26);
+  doc.setTextColor(15, 23, 42);
+  doc.text((winnerName || "Certified Candidate").toUpperCase(), 148.5, 86, { align: "center" });
+
+  // Underline for winner name
+  doc.setDrawColor(2, 132, 199);
+  doc.setLineWidth(0.5);
+  const nameWidth = doc.getTextWidth((winnerName || "Certified Candidate").toUpperCase());
+  doc.line(148.5 - (nameWidth / 2) - 5, 89, 148.5 + (nameWidth / 2) + 5, 89);
+
+  // Conferred Position
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(12);
+  doc.setTextColor(51, 65, 85);
+  doc.text("has been duly elected by student consensus as the certified", 148.5, 99, { align: "center" });
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  doc.setTextColor(217, 119, 6);
+  doc.text((position || "Class Representative").toUpperCase(), 148.5, 110, { align: "center" });
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  doc.setTextColor(71, 85, 105);
+  doc.text(`for ${section || 'Section A'} in the institutional cohort election: "${electionTitle || 'CR Election 2026'}".`, 148.5, 120, { align: "center" });
+  doc.text("Having secured the plurality of certified ballots under the cryptographic decoupled", 148.5, 127, { align: "center" });
+  doc.text("ledger protocol, this candidate is hereby inducted into the Mirai Student Leadership Body.", 148.5, 133, { align: "center" });
+
+  // Verification Seal Badge
+  const sealX = 148.5;
+  const sealY = 153;
+  doc.setDrawColor(217, 119, 6);
+  doc.setLineWidth(0.8);
+  doc.circle(sealX, sealY, 12);
+  doc.setDrawColor(15, 23, 42);
+  doc.circle(sealX, sealY, 10.5);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(7);
+  doc.setTextColor(217, 119, 6);
+  doc.text("CERTIFIED", sealX, sealY - 2, { align: "center" });
+  doc.text("2026", sealX, sealY + 2, { align: "center" });
+  doc.setFontSize(5.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text("LEDGER AUDIT", sealX, sealY + 5.5, { align: "center" });
+
+  // Signatures
+  // Left: Chief Returning Officer
+  doc.setDrawColor(71, 85, 105);
+  doc.setLineWidth(0.5);
+  doc.line(40, 165, 95, 165);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text("Prof. Arjun Sundaram", 67.5, 171, { align: "center" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text("Chief Election Returning Officer", 67.5, 175.5, { align: "center" });
+  doc.text("Mirai Election Commission", 67.5, 179.5, { align: "center" });
+
+  // Right: Dean of Academic Affairs
+  doc.line(202, 165, 257, 165);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text("Dr. Meera Nambiar", 229.5, 171, { align: "center" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text("Dean of Student Affairs", 229.5, 175.5, { align: "center" });
+  doc.text("Mirai School of Technology", 229.5, 179.5, { align: "center" });
+
+  // Institutional Micro-Footer
+  doc.setFont("courier", "bold");
+  doc.setFontSize(7.5);
+  doc.setTextColor(148, 163, 184);
+  const certId = auditId || `MIRAI-CERT-2026-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+  doc.text(`CRYPTOGRAPHIC AUDIT ID: ${certId}  •  VERIFIED AT ${new Date().toISOString()}`, 148.5, 194, { align: "center" });
+
+  // Save to PDF file
+  const safeName = (winnerName || "Winner").replace(/[^a-zA-Z0-9]/g, "_");
+  const safePos = (position || "CR").replace(/[^a-zA-Z0-9]/g, "_");
+  doc.save(`Mirai_Certificate_${safePos}_${safeName}.pdf`);
+}
+
+// ============================================================================
+// 4. Certified Audit Report CSV Export
+// ============================================================================
+
+export async function exportAuditCsv(electionId = "section-a") {
+  try {
+    const electionSnap = await getDoc(doc(db, "elections", electionId));
+    const electionData = electionSnap.exists() ? electionSnap.data() : {};
+    const title = electionData.title || "Section A - CR Election 2026";
+    const section = electionData.section || "Section A";
+    const status = electionData.status || "published";
+
+    const candSnap = await getDocs(collection(db, "candidates"));
+    const candidates = [];
+    candSnap.forEach(d => candidates.push({ id: d.id, ...d.data() }));
+
+    const wlSnap = await getDocs(collection(db, "whitelist"));
+    const totalVoters = wlSnap.size;
+    let votesCast = 0;
+    wlSnap.forEach(d => {
+      if (d.data().hasVoted === true) votesCast++;
+    });
+
+    const boyVotes = candidates.filter(c => c.category === "boy_cr").reduce((s, c) => s + (c.voteCount || 0), 0);
+    const girlVotes = candidates.filter(c => c.category === "girl_cr").reduce((s, c) => s + (c.voteCount || 0), 0);
+
+    const nowIso = new Date().toISOString();
+
+    let csv = `MIRAI VOTE HUB - OFFICIAL CERTIFIED ELECTION AUDIT REPORT\r\n`;
+    csv += `Generated At,${nowIso}\r\n`;
+    csv += `Election Title,${title}\r\n`;
+    csv += `Section,${section}\r\n`;
+    csv += `Audit Status,${status.toUpperCase()}\r\n`;
+    csv += `Total Whitelisted Eligible Voters,${totalVoters}\r\n`;
+    csv += `Total Verified Ballots Cast,${votesCast}\r\n`;
+    csv += `Turnout Rate,${totalVoters > 0 ? ((votesCast / totalVoters) * 100).toFixed(2) : "0.00"}%\r\n\r\n`;
+
+    csv += `CANDIDATE RESULTS BREAKDOWN\r\n`;
+    csv += `Position,Candidate Name,Roll Number,Votes Received,Percentage Share,Status\r\n`;
+
+    const boys = candidates.filter(c => c.category === "boy_cr").sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0));
+    boys.forEach((c, idx) => {
+      const cnt = c.voteCount || 0;
+      const pct = boyVotes > 0 ? ((cnt / boyVotes) * 100).toFixed(2) : "0.00";
+      const standing = idx === 0 && cnt > 0 ? "CERTIFIED WINNER" : `Rank #${idx + 1}`;
+      csv += `"Boy Class Representative","${c.name}","${c.rollNo || ''}",${cnt},${pct}%,${standing}\r\n`;
+    });
+
+    const girls = candidates.filter(c => c.category === "girl_cr").sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0));
+    girls.forEach((c, idx) => {
+      const cnt = c.voteCount || 0;
+      const pct = girlVotes > 0 ? ((cnt / girlVotes) * 100).toFixed(2) : "0.00";
+      const standing = idx === 0 && cnt > 0 ? "CERTIFIED WINNER" : `Rank #${idx + 1}`;
+      csv += `"Girl Class Representative","${c.name}","${c.rollNo || ''}",${cnt},${pct}%,${standing}\r\n`;
+    });
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Mirai_Audit_Report_${section.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error("Export audit CSV error:", err);
+    alert(`Failed to export audit report: ${err.message}`);
+  }
 }
 
 // ============================================================================
@@ -521,4 +869,36 @@ export function initTabNavigation() {
 document.addEventListener("DOMContentLoaded", () => {
   initTabNavigation();
   initTelemetryAndResults();
+  startCardTimerUpdater();
+
+  // Button hooks for certificates & audit export
+  if (downloadBoyCertBtn) {
+    downloadBoyCertBtn.addEventListener("click", () => {
+      if (!certifiedBoyWinner) return;
+      generateWinnerCertificate({
+        winnerName: certifiedBoyWinner.name,
+        position: "Boy Class Representative",
+        section: currentElectionMetadata.section || "Section A",
+        electionTitle: currentElectionMetadata.title || "Section A - CR Election 2026"
+      });
+    });
+  }
+
+  if (downloadGirlCertBtn) {
+    downloadGirlCertBtn.addEventListener("click", () => {
+      if (!certifiedGirlWinner) return;
+      generateWinnerCertificate({
+        winnerName: certifiedGirlWinner.name,
+        position: "Girl Class Representative",
+        section: currentElectionMetadata.section || "Section A",
+        electionTitle: currentElectionMetadata.title || "Section A - CR Election 2026"
+      });
+    });
+  }
+
+  if (exportAuditCsvBtn) {
+    exportAuditCsvBtn.addEventListener("click", () => {
+      exportAuditCsv(currentElectionMetadata.id || "section-a");
+    });
+  }
 });
