@@ -6,7 +6,7 @@ export const ADMIN_PIN = ADMIN_PASSKEY;
 
 import { db } from "./firebase-config.js";
 import { showAlert } from "./auth.js";
-import { exportAuditCsv } from "./results.js";
+import { exportAuditCsv, generateWinnerCertificate } from "./results.js";
 import {
   collection,
   doc,
@@ -70,7 +70,10 @@ export function authenticateAdmin(username, password) {
     if (tabAdminBtn) tabAdminBtn.classList.remove("hidden");
     tabAdminBtn?.click();
 
-    // Update Header Status & Profile
+    // Update Header Status & Profile (hide Admin Access button)
+    const adminToggleBtn = document.getElementById("adminToggleBtn");
+    if (adminToggleBtn) adminToggleBtn.classList.add("hidden");
+
     const userProfile = document.getElementById("userProfile");
     const userDisplayName = document.getElementById("userDisplayName");
     const userRoleBadge = document.getElementById("userRoleBadge");
@@ -96,9 +99,12 @@ export function logoutAdmin() {
   const tabAdminBtn = document.getElementById("tabAdminBtn");
   if (tabAdminBtn) tabAdminBtn.classList.add("hidden");
 
-  // Reset header profile
+  // Reset header profile and restore Admin Access button
   const userProfile = document.getElementById("userProfile");
   if (userProfile) userProfile.classList.add("hidden");
+
+  const adminToggleBtn = document.getElementById("adminToggleBtn");
+  if (adminToggleBtn) adminToggleBtn.classList.remove("hidden");
 
   // Return to active elections view
   document.getElementById("tabElectionsBtn")?.click();
@@ -109,6 +115,9 @@ export function checkAdminSession() {
   if (sessionStorage.getItem("isAdminAuthenticated") === "true") {
     const tabAdminBtn = document.getElementById("tabAdminBtn");
     if (tabAdminBtn) tabAdminBtn.classList.remove("hidden");
+
+    const adminToggleBtn = document.getElementById("adminToggleBtn");
+    if (adminToggleBtn) adminToggleBtn.classList.add("hidden");
 
     const userProfile = document.getElementById("userProfile");
     const userDisplayName = document.getElementById("userDisplayName");
@@ -499,7 +508,8 @@ let currentLookedUpRoll = null;
 let currentLookedUpElectionId = "section-a";
 
 export async function lookupVoter(rollNo, electionId = "section-a") {
-  const cleanRoll = (rollNo || "").trim().toUpperCase();
+  const inputEl = document.getElementById("voterLookupInput") || document.getElementById("voterLookupRollInput");
+  const cleanRoll = (rollNo || inputEl?.value || "").trim().toUpperCase();
   if (!cleanRoll) {
     showAlert("Please enter a valid Student Roll Number to verify.", "error");
     return;
@@ -838,15 +848,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Voter Audit & Lookup
   const voterLookupBtn = document.getElementById("voterLookupBtn");
-  const voterLookupRollInput = document.getElementById("voterLookupRollInput");
+  const voterLookupInput = document.getElementById("voterLookupInput") || document.getElementById("voterLookupRollInput");
   const emergencyResetVoterBtn = document.getElementById("emergencyResetVoterBtn");
 
-  if (voterLookupBtn && voterLookupRollInput) {
+  if (voterLookupBtn && voterLookupInput) {
     voterLookupBtn.addEventListener("click", () => {
-      const roll = voterLookupRollInput.value.trim();
+      const roll = voterLookupInput.value.trim();
       lookupVoter(roll);
     });
-    voterLookupRollInput.addEventListener("keydown", (e) => {
+    voterLookupInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
         voterLookupBtn.click();
@@ -865,6 +875,30 @@ document.addEventListener("DOMContentLoaded", () => {
   if (adminExportCsvBtn) {
     adminExportCsvBtn.addEventListener("click", () => {
       exportAuditCsv();
+    });
+  }
+
+  // Preview Sample Certificate (PDF)
+  const previewSampleCertBtn = document.getElementById("previewSampleCertBtn");
+  if (previewSampleCertBtn) {
+    previewSampleCertBtn.addEventListener("click", () => {
+      generateWinnerCertificate({
+        winnerName: "Aarav Sharma",
+        position: "BOY CLASS REPRESENTATIVE (BOY CR)",
+        section: "Section A",
+        electionTitle: "CR Election 2026",
+        auditId: "MVH-2026-SAMPLE"
+      });
+    });
+  }
+
+  // Navbar Sign Out Button hook for Admin
+  const logoutBtn = document.getElementById("logoutBtn");
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", () => {
+      if (sessionStorage.getItem("isAdminAuthenticated") === "true") {
+        logoutAdmin();
+      }
     });
   }
 

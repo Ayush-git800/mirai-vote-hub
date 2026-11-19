@@ -426,9 +426,6 @@
               <h2>Election Commission Control Center</h2>
               <p class="section-desc">Create elections, ingest voter whitelists, register certified candidates, and operate stage reveals</p>
             </div>
-            <div class="header-right">
-              <button id="adminLogoutBtn" class="btn btn-danger btn-sm">Logout Admin ⏻</button>
-            </div>
           </div>
 
           <div class="admin-grid">
@@ -487,8 +484,9 @@
                 <label for="whitelistBatchTextarea">Paste Student IDs (Up to 120+ Roster):</label>
                 <textarea 
                   id="whitelistBatchTextarea" 
-                  rows="5" 
+                  rows="6" 
                   class="form-textarea mono" 
+                  style="min-height: 140px;"
                   placeholder="Paste up to 120+ Roll Numbers:&#10;23MST001&#10;23MST002&#10;23MST003&#10;23MST004&#10;...or comma-separated"
                 ></textarea>
                 <!-- Hidden compatibility field -->
@@ -565,38 +563,29 @@
             </div>
 
             <!-- Module D: Election Lifecycle Controls -->
-            <div class="admin-card col-span-2">
+            <div class="admin-card">
               <div class="admin-card-header">
                 <h3>⚡ Election Lifecycle Controls</h3>
-                <span class="card-badge">State Machine &amp; Reveal Protocol</span>
+                <span class="card-badge">State Machine</span>
               </div>
-              <p class="admin-help-text">Govern the operational state of the voting portal and control the 2-stage unsealing protocol.</p>
+              <p class="admin-help-text">Govern operational portal states and release certified cryptographic tallies.</p>
               
-              <div class="lifecycle-controls-grid">
-                <div class="control-box">
-                  <label class="control-title">Portal State Machine</label>
-                  <div class="btn-group">
-                    <button class="btn btn-cyber-outline state-btn" data-state="ready" id="lifecycleDraftBtn">Set to Draft</button>
-                    <button class="btn btn-cyber-outline state-btn" data-state="active" id="lifecycleActiveBtn">Start Voting (Active)</button>
-                    <button class="btn btn-cyber-outline state-btn" data-state="concluded" id="lifecycleConcludedBtn">End Voting (Sealed)</button>
-                  </div>
-                  <!-- Compatibility aliases -->
-                  <div class="hidden">
-                    <button id="stateReadyBtn" data-state="ready"></button>
-                    <button id="stateActiveBtn" data-state="active"></button>
-                    <button id="statePausedBtn" data-state="paused"></button>
-                    <button id="stateConcludedBtn" data-state="concluded"></button>
-                  </div>
+              <div class="lifecycle-controls-box">
+                <label class="control-title">Portal State Transitions</label>
+                <div class="lifecycle-buttons-grid">
+                  <button class="btn btn-cyber-outline state-btn" data-state="ready" id="lifecycleDraftBtn">Set to Draft</button>
+                  <button class="btn btn-cyber-outline state-btn" data-state="active" id="lifecycleActiveBtn">Start Voting (Active)</button>
+                  <button class="btn btn-cyber-outline state-btn" data-state="concluded" id="lifecycleConcludedBtn">End Voting (Sealed)</button>
+                  <button class="btn btn-cyber-outline reveal-btn" data-stage="2" id="lifecyclePublishBtn">Publish Certified Results</button>
                 </div>
-
-                <div class="control-box">
-                  <label class="control-title">Auditing &amp; Reveal Gating</label>
-                  <div class="btn-group">
-                    <button class="btn btn-cyber-outline reveal-btn" data-stage="1" id="stage1Btn">Stage 1: Turnout Only</button>
-                    <button class="btn btn-cyber-outline reveal-btn" data-stage="2" id="lifecyclePublishBtn">Publish Live Results</button>
-                    <!-- Compatibility alias -->
-                    <button id="stage2Btn" data-stage="2" class="hidden"></button>
-                  </div>
+                <!-- Compatibility aliases -->
+                <div class="hidden">
+                  <button id="stage1Btn" data-stage="1"></button>
+                  <button id="stage2Btn" data-stage="2"></button>
+                  <button id="stateReadyBtn" data-state="ready"></button>
+                  <button id="stateActiveBtn" data-state="active"></button>
+                  <button id="statePausedBtn" data-state="paused"></button>
+                  <button id="stateConcludedBtn" data-state="concluded"></button>
                 </div>
               </div>
 
@@ -618,7 +607,7 @@
               
               <div class="voter-lookup-box">
                 <div class="input-with-button">
-                  <input type="text" id="voterLookupRollInput" placeholder="Enter Roll No (e.g. 23MST001)" class="mono">
+                  <input type="text" id="voterLookupInput" placeholder="Enter Roll No (e.g. 23MST001)" class="mono">
                   <button id="voterLookupBtn" class="btn btn-cyber-primary" type="button">Verify Status</button>
                 </div>
                 <div id="voterLookupResult" class="voter-lookup-result hidden"></div>
@@ -632,9 +621,14 @@
             <div class="admin-card col-span-2">
               <div class="admin-card-header">
                 <h3>📋 Election Management Ledger</h3>
-                <button id="adminExportCsvBtn" class="btn btn-cyber-outline btn-sm" type="button">
-                  📊 Export Certified Audit (CSV)
-                </button>
+                <div class="ledger-header-actions" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                  <button id="previewSampleCertBtn" class="btn btn-cyber-outline btn-sm" type="button">
+                    📜 Preview Sample Certificate (PDF)
+                  </button>
+                  <button id="adminExportCsvBtn" class="btn btn-cyber-outline btn-sm" type="button">
+                    📊 Export Certified Audit (CSV)
+                  </button>
+                </div>
               </div>
               <p class="admin-help-text">Oversee all registered elections, inspect mode and timers, change lifecycle status, archive or delete test cohorts.</p>
               

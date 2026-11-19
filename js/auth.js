@@ -287,6 +287,7 @@ export async function claimStudentBallot(rollNo, passkey) {
 export async function performLogout() {
   await signOut(auth);
   localStorage.removeItem("mirai_vote_session");
+  sessionStorage.removeItem("isAdminAuthenticated");
   state.currentUser = null;
   state.role = null;
   state.studentData = null;
@@ -300,6 +301,9 @@ export async function performLogout() {
   if (votedSuccessSection) votedSuccessSection.classList.add("hidden");
   if (userProfile) userProfile.classList.add("hidden");
   if (tabAdminBtn) tabAdminBtn.classList.add("hidden");
+
+  const adminToggleBtn = document.getElementById("adminToggleBtn");
+  if (adminToggleBtn) adminToggleBtn.classList.remove("hidden");
 
   // Reset eligibility indicators on cards
   document.querySelectorAll(".election-eligibility-spec").forEach(el => el.remove());

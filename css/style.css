@@ -1101,16 +1101,22 @@ p {
   pointer-events: none;
 }
 
+input,
+select,
+textarea,
+#voterLookupInput,
+#voterLookupRollInput,
+.input-with-button input,
 .input-prefix-wrapper input,
 .form-group input,
 .form-group select,
 .form-textarea {
   width: 100%;
-  background: var(--input-bg);
-  border: 1px solid var(--input-border);
+  background: var(--input-bg) !important;
+  border: 1px solid var(--input-border) !important;
   border-radius: var(--radius-md);
   padding: 0.75rem 0.85rem;
-  color: var(--text-primary);
+  color: var(--text-primary) !important;
   font-family: inherit;
   font-size: 0.9rem;
   transition: var(--transition);
@@ -1120,13 +1126,23 @@ p {
   padding-left: 2.5rem;
 }
 
+input:focus,
+select:focus,
+textarea:focus,
+#voterLookupInput:focus,
+#voterLookupRollInput:focus,
+.input-with-button input:focus,
 .input-prefix-wrapper input:focus,
 .form-group input:focus,
 .form-group select:focus,
 .form-textarea:focus {
   outline: none;
-  border-color: var(--neon-cyan);
-  box-shadow: 0 0 0 3px rgba(0, 240, 255, 0.2);
+  border-color: var(--neon-cyan) !important;
+  box-shadow: 0 0 0 3px rgba(0, 240, 255, 0.2) !important;
+}
+
+#whitelistBatchTextarea {
+  min-height: 140px;
 }
 
 .form-hint {
@@ -1420,7 +1436,7 @@ p {
 .admin-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 1.5rem;
+  gap: 24px;
 }
 
 .admin-card {
@@ -1429,7 +1445,7 @@ p {
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
-  padding: 1.75rem;
+  padding: 24px;
 }
 
 .admin-card-header {
@@ -1524,11 +1540,12 @@ p {
   font-size: 0.82rem;
 }
 
-.lifecycle-controls-grid {
+.lifecycle-controls-grid,
+.lifecycle-buttons-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 1.5rem;
-  margin-top: 1rem;
+  gap: 0.65rem;
+  margin-top: 0.5rem;
 }
 
 .control-box {
