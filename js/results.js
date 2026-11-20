@@ -204,6 +204,19 @@ function subscribeToCandidates() {
 
     if (electionSnap.exists()) {
       const edata = electionSnap.data();
+      if (edata.archived === true) {
+        const container = document.getElementById("dynamicResultsCategories");
+        if (container) {
+          container.innerHTML = `
+            <div class="empty-elections-card col-span-full" style="text-align: center; padding: 3rem 1.5rem;">
+              <div class="empty-icon">📦</div>
+              <h3>Election Results Archived</h3>
+              <p>This election cohort has been archived and is not available in the public results view.</p>
+            </div>
+          `;
+        }
+        return;
+      }
       if (Array.isArray(edata.categories) && edata.categories.length > 0) {
         categories = edata.categories;
       }
@@ -391,10 +404,15 @@ export function subscribeToElections() {
     }
 
     let activeCount = 0;
+    let visibleElectionsCount = 0;
     electionsGrid.innerHTML = "";
 
     snapshot.forEach((docSnap) => {
       const data = { id: docSnap.id, ...docSnap.data() };
+      // Completely hide elections with archived === true from students and public visitors
+      if (data.archived === true) return;
+      visibleElectionsCount++;
+
       const status = data.status || "draft";
       const section = data.section || "Cohort";
       const title = data.title || `${section} - CR Election 2026`;
@@ -533,6 +551,20 @@ export function subscribeToElections() {
 
       electionsGrid.appendChild(card);
     });
+
+    if (visibleElectionsCount === 0) {
+      updateGlobalElectionStatusPill(0);
+      electionsGrid.innerHTML = `
+        <div class="empty-elections-card col-span-full">
+          <div class="empty-icon">🗳️</div>
+          <h3>No Active Elections Registered</h3>
+          <p>There are currently no active cohort elections configured in the Firestore ledger.</p>
+          <small>Election Commission administrators can create and instantiate a new election cohort from the Admin Terminal.</small>
+        </div>
+      `;
+      if (activeCountEl) activeCountEl.textContent = "0";
+      return;
+    }
 
     // Update global top navbar election status pill dynamically
     updateGlobalElectionStatusPill(activeCount);

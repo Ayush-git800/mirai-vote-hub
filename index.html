@@ -544,8 +544,18 @@
 
             <!-- Card 3: Election Management Ledger & Certified Export -->
             <div class="admin-card col-span-2">
-              <div class="admin-card-header">
-                <h3>📋 Election Management Ledger</h3>
+              <div class="admin-card-header" style="flex-wrap: wrap; gap: 0.8rem;">
+                <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                  <h3 style="margin: 0;">📋 Election Management Ledger</h3>
+                  <div class="ledger-tab-filter">
+                    <button id="ledgerFilterActiveBtn" class="ledger-filter-btn active" type="button">
+                      Active &amp; Recent
+                    </button>
+                    <button id="ledgerFilterArchivedBtn" class="ledger-filter-btn" type="button">
+                      Archived Elections <span class="archived-badge" id="ledgerArchivedCount">0</span>
+                    </button>
+                  </div>
+                </div>
                 <div class="ledger-header-actions" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                   <button id="previewSampleCertBtn" class="btn btn-cyber-outline btn-sm" type="button">
                     📜 Preview Sample Certificate (PDF)

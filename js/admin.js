@@ -397,6 +397,7 @@ export async function createUnifiedElection({ title, section, categories, mode, 
       section: cleanScope,
       categories: finalCategories,
       status: "draft",
+      archived: false,
       revealStage: 1,
       votingMode: mode || "manual",
       durationMinutes: Number(durationMinutes) || 60,
@@ -686,21 +687,77 @@ export async function updateRevealStage(stage) {
 export async function archiveElection(electionId) {
   try {
     const electionRef = doc(db, "elections", electionId);
-    await setDoc(electionRef, { status: "archived", updatedAt: serverTimestamp() }, { merge: true });
-    showAlert(`Election '${electionId}' has been archived.`, "info");
+    await setDoc(electionRef, { archived: true, updatedAt: serverTimestamp() }, { merge: true });
+    showAlert(`Election '${electionId}' moved to Archive. Public access hidden.`, "info");
   } catch (err) {
+    console.error("Archive election error:", err);
     showAlert(`Failed to archive election: ${err.message}`, "error");
   }
 }
 
+export async function restoreElection(electionId) {
+  try {
+    const electionRef = doc(db, "elections", electionId);
+    await setDoc(electionRef, { archived: false, updatedAt: serverTimestamp() }, { merge: true });
+    showAlert(`Election '${electionId}' restored to active ledger and public view.`, "success");
+  } catch (err) {
+    console.error("Restore election error:", err);
+    showAlert(`Failed to restore election: ${err.message}`, "error");
+  }
+}
+
 export async function deleteElection(electionId) {
-  const confirmation = confirm(`CRITICAL ACTION: Permanently delete election cohort '${electionId}'?\nAll associated ledger settings will be removed.`);
+  const confirmation = confirm(
+    "Permanently delete this election, all its candidates, and its entire voter whitelist? This cannot be undone."
+  );
   if (!confirmation) return;
 
+  showAlert(`Initiating deep delete for '${electionId}'...`, "info");
+
   try {
+    // 1. Delete all candidate subcollection documents in chunked batches of 450
+    const candSnap = await getDocs(collection(db, "elections", electionId, "candidates"));
+    if (!candSnap.empty) {
+      const candDocs = candSnap.docs;
+      for (let i = 0; i < candDocs.length; i += 450) {
+        const batch = writeBatch(db);
+        candDocs.slice(i, i + 450).forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
+    }
+
+    // 2. Delete all whitelist subcollection documents in chunked batches of 450
+    const wlSnap = await getDocs(collection(db, "elections", electionId, "whitelist"));
+    if (!wlSnap.empty) {
+      const wlDocs = wlSnap.docs;
+      for (let i = 0; i < wlDocs.length; i += 450) {
+        const batch = writeBatch(db);
+        wlDocs.slice(i, i + 450).forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
+    }
+
+    // 3. Delete any election-specific votes in chunks of 450
+    try {
+      const votesSnap = await getDocs(collection(db, "elections", electionId, "votes"));
+      if (!votesSnap.empty) {
+        const voteDocs = votesSnap.docs;
+        for (let i = 0; i < voteDocs.length; i += 450) {
+          const batch = writeBatch(db);
+          voteDocs.slice(i, i + 450).forEach(d => batch.delete(d.ref));
+          await batch.commit();
+        }
+      }
+    } catch (voteErr) {
+      console.warn("Votes subcollection cleanup note:", voteErr);
+    }
+
+    // 4. Delete the parent election document
     await deleteDoc(doc(db, "elections", electionId));
-    showAlert(`Election '${electionId}' deleted successfully.`, "success");
+
+    showAlert(`Election '${electionId}', all its candidates, and entire whitelist were permanently deleted.`, "success");
   } catch (err) {
+    console.error("Deep delete election failure:", err);
     showAlert(`Failed to delete election: ${err.message}`, "error");
   }
 }
@@ -1015,36 +1072,41 @@ export async function emergencyResetVoter(rollNo = currentLookedUpRoll, election
 // 9. Real-Time Admin Elections Table & Dynamic Dropdown Populator
 // ============================================================================
 
+let ledgerFilter = "active"; // "active" | "archived"
+let cachedElectionsList = [];
+
 export function initAdminElectionsTable() {
   const tbody = document.getElementById("adminElectionsTableBody");
   const electionSelect = document.getElementById("voterLookupElectionSelect");
+  const filterActiveBtn = document.getElementById("ledgerFilterActiveBtn");
+  const filterArchivedBtn = document.getElementById("ledgerFilterArchivedBtn");
+  const countEl = document.getElementById("ledgerArchivedCount");
+
   if (!tbody) return;
 
-  const electionsCol = collection(db, "elections");
-  onSnapshot(electionsCol, (snapshot) => {
+  function renderLedgerRows() {
     tbody.innerHTML = "";
 
-    // Update Voter Audit Election Dropdown
-    if (electionSelect) {
-      const curVal = electionSelect.value;
-      electionSelect.innerHTML = `<option value="">All Elections (Global Lookup)</option>`;
-      snapshot.forEach(docSnap => {
-        const d = docSnap.data();
-        const opt = document.createElement("option");
-        opt.value = docSnap.id;
-        opt.textContent = `${d.title || docSnap.id} (${d.section || 'General'})`;
-        electionSelect.appendChild(opt);
-      });
-      electionSelect.value = curVal;
-    }
+    const archivedCount = cachedElectionsList.filter(e => e.archived === true).length;
+    if (countEl) countEl.textContent = archivedCount.toString();
 
-    if (snapshot.empty) {
-      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 2rem; color: var(--text-muted);">No elections registered yet. Create one above!</td></tr>`;
+    const filtered = cachedElectionsList.filter(e => {
+      if (ledgerFilter === "archived") {
+        return e.archived === true;
+      }
+      return e.archived !== true;
+    });
+
+    if (filtered.length === 0) {
+      if (ledgerFilter === "archived") {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 2rem; color: var(--text-muted);">No archived elections found. All registered cohorts are currently active.</td></tr>`;
+      } else {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 2rem; color: var(--text-muted);">No active elections registered yet. Create one above!</td></tr>`;
+      }
       return;
     }
 
-    snapshot.forEach(docSnap => {
-      const data = { id: docSnap.id, ...docSnap.data() };
+    filtered.forEach(data => {
       const row = document.createElement("tr");
 
       const modeBadge = data.votingMode === "timed"
@@ -1053,23 +1115,37 @@ export function initAdminElectionsTable() {
 
       const status = (data.status || "draft").toLowerCase();
       let statusBadge = `<span class="badge badge-secondary">${status.toUpperCase()}</span>`;
-      if (status === "active") statusBadge = `<span class="badge badge-primary">ACTIVE</span>`;
-      else if (status === "concluded" || status === "ended") statusBadge = `<span class="badge badge-secondary" style="border-color:var(--neon-amber); color:var(--neon-amber);">SEALED</span>`;
-      else if (status === "published") statusBadge = `<span class="badge badge-winner">PUBLISHED</span>`;
+      if (data.archived === true) {
+        statusBadge = `<span class="badge badge-secondary" style="border-color:var(--text-muted); color:var(--text-secondary);">ARCHIVED</span>`;
+      } else if (status === "active") {
+        statusBadge = `<span class="badge badge-primary">ACTIVE</span>`;
+      } else if (status === "concluded" || status === "ended") {
+        statusBadge = `<span class="badge badge-secondary" style="border-color:var(--neon-amber); color:var(--neon-amber);">SEALED</span>`;
+      } else if (status === "published") {
+        statusBadge = `<span class="badge badge-winner">PUBLISHED</span>`;
+      }
 
       // Inline action buttons tailored per row
       let lifecycleBtn = "";
-      if (status === "draft" || status === "ready") {
-        lifecycleBtn = `<button class="btn btn-cyber-primary btn-sm admin-act-btn" data-act="start" data-id="${data.id}">▶ Start Voting</button>`;
-      } else if (status === "active") {
-        lifecycleBtn = `<button class="btn btn-warning btn-sm admin-act-btn" data-act="end" data-id="${data.id}">⏹ End &amp; Seal</button>`;
-      } else if (status === "ended" || status === "concluded") {
-        lifecycleBtn = `
-          <button class="btn btn-cyber-primary btn-sm admin-act-btn" data-act="publish" data-id="${data.id}">📢 Publish Results</button>
-          <button class="btn btn-cyber-outline btn-sm admin-act-btn" data-act="reopen" data-id="${data.id}">↩ Set Draft</button>
-        `;
-      } else if (status === "published") {
-        lifecycleBtn = `<button class="btn btn-cyber-outline btn-sm admin-act-btn" data-act="archive" data-id="${data.id}">📦 Archive</button>`;
+      if (data.archived !== true) {
+        if (status === "draft" || status === "ready") {
+          lifecycleBtn = `<button class="btn btn-cyber-primary btn-sm admin-act-btn" data-act="start" data-id="${data.id}">▶ Start</button>`;
+        } else if (status === "active") {
+          lifecycleBtn = `<button class="btn btn-warning btn-sm admin-act-btn" data-act="end" data-id="${data.id}">⏹ End</button>`;
+        } else if (status === "ended" || status === "concluded") {
+          lifecycleBtn = `
+            <button class="btn btn-cyber-primary btn-sm admin-act-btn" data-act="publish" data-id="${data.id}">📢 Publish</button>
+            <button class="btn btn-cyber-outline btn-sm admin-act-btn" data-act="reopen" data-id="${data.id}">↩ Set Draft</button>
+          `;
+        }
+      }
+
+      // Archive / Restore button
+      let archiveToggleBtn = "";
+      if (data.archived === true) {
+        archiveToggleBtn = `<button class="btn btn-cyber-outline btn-sm admin-act-btn" data-act="restore" data-id="${data.id}" title="Restore Election to Public View">♻️ Restore</button>`;
+      } else {
+        archiveToggleBtn = `<button class="btn btn-cyber-outline btn-sm admin-act-btn" data-act="archive" data-id="${data.id}" title="Archive Election">📦 Archive</button>`;
       }
 
       const seatsSummary = Array.isArray(data.categories) && data.categories.length > 0
@@ -1087,8 +1163,9 @@ export function initAdminElectionsTable() {
         <td>
           <div style="display:flex; gap:0.4rem; flex-wrap:wrap; align-items:center;">
             ${lifecycleBtn}
+            ${archiveToggleBtn}
             <button class="btn btn-cyber-outline btn-sm admin-act-btn" data-act="manage" data-id="${data.id}" title="Manage Whitelist & Nominees">⚙️ Manage</button>
-            <button class="btn btn-danger btn-sm admin-act-btn" data-act="delete" data-id="${data.id}" title="Delete Election">&times; Delete</button>
+            <button class="btn btn-danger btn-sm admin-act-btn" data-act="delete" data-id="${data.id}" title="Deep Delete Election">&times; Delete</button>
           </div>
         </td>
       `;
@@ -1102,6 +1179,7 @@ export function initAdminElectionsTable() {
           else if (act === "publish") setElectionStatus(id, "published");
           else if (act === "reopen") setElectionStatus(id, "draft");
           else if (act === "archive") archiveElection(id);
+          else if (act === "restore") restoreElection(id);
           else if (act === "manage") openManageElectionModal(id);
           else if (act === "delete") deleteElection(id);
         });
@@ -1109,6 +1187,46 @@ export function initAdminElectionsTable() {
 
       tbody.appendChild(row);
     });
+  }
+
+  // Hook up filter toggle buttons
+  if (filterActiveBtn && filterArchivedBtn) {
+    filterActiveBtn.addEventListener("click", () => {
+      ledgerFilter = "active";
+      filterActiveBtn.classList.add("active");
+      filterArchivedBtn.classList.remove("active");
+      renderLedgerRows();
+    });
+
+    filterArchivedBtn.addEventListener("click", () => {
+      ledgerFilter = "archived";
+      filterArchivedBtn.classList.add("active");
+      filterActiveBtn.classList.remove("active");
+      renderLedgerRows();
+    });
+  }
+
+  const electionsCol = collection(db, "elections");
+  onSnapshot(electionsCol, (snapshot) => {
+    cachedElectionsList = [];
+    snapshot.forEach(docSnap => {
+      cachedElectionsList.push({ id: docSnap.id, ...docSnap.data() });
+    });
+
+    // Update Voter Audit Election Dropdown
+    if (electionSelect) {
+      const curVal = electionSelect.value;
+      electionSelect.innerHTML = `<option value="">All Elections (Global Lookup)</option>`;
+      cachedElectionsList.forEach(d => {
+        const opt = document.createElement("option");
+        opt.value = d.id;
+        opt.textContent = `${d.title || d.id} (${d.section || 'General'})${d.archived ? ' [Archived]' : ''}`;
+        electionSelect.appendChild(opt);
+      });
+      electionSelect.value = curVal;
+    }
+
+    renderLedgerRows();
   }, (err) => {
     console.error("Admin elections ledger error:", err);
   });

@@ -142,6 +142,16 @@ export async function renderDynamicBallot(electionId = currentElectionId) {
     const electionSnap = await getDoc(doc(db, "elections", electionId));
     if (electionSnap.exists()) {
       const edata = electionSnap.data();
+      if (edata.archived === true) {
+        container.innerHTML = `
+          <div class="empty-ballot-state" style="text-align: center; padding: 3rem 1.5rem;">
+            <div style="font-size: 2.5rem; margin-bottom: 1rem;">📦</div>
+            <h3>Election Cohort Archived</h3>
+            <p>This election has been archived by the Election Commission and is no longer accepting ballots.</p>
+          </div>
+        `;
+        return;
+      }
       if (Array.isArray(edata.categories) && edata.categories.length > 0) {
         categories = edata.categories;
       }
@@ -410,6 +420,9 @@ export async function submitBallot(electionId, studentId, selectionsMapArg, extr
 
     if (electionSnap.exists()) {
       const edata = electionSnap.data();
+      if (edata.archived === true) {
+        throw new Error("Election has been archived. Ballots can no longer be cast for this cohort.");
+      }
       status = edata.status;
       votingMode = edata.votingMode || "manual";
       closesAt = edata.closesAt || null;

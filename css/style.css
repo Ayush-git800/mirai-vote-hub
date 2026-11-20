@@ -1494,6 +1494,57 @@ textarea:focus,
   margin-bottom: 0;
 }
 
+/* Ledger Filter Tabs */
+.ledger-tab-filter {
+  display: inline-flex;
+  background: var(--bg-primary);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-md);
+  padding: 3px;
+  gap: 4px;
+}
+
+.ledger-filter-btn {
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ledger-filter-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.ledger-filter-btn.active {
+  background: var(--input-bg);
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  box-shadow: 0 0 10px var(--accent-cyan-glow);
+}
+
+.ledger-filter-btn .archived-badge {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.ledger-filter-btn.active .archived-badge {
+  background: rgba(0, 240, 255, 0.2);
+  color: var(--accent-cyan);
+}
+
 .card-badge {
   font-size: 0.7rem;
   font-weight: 700;

@@ -45,11 +45,12 @@ service cloud.firestore {
                       || request.resource.data.voteCount == 0;
       }
 
-      // Decoupled anonymous votes inside election
+      // Decoupled anonymous votes inside election (cascade-deletable on election cleanup)
       match /votes/{voteId} {
         allow read: if true;
         allow create: if true;
-        allow update, delete: if false; // Immutable sealed audit trail
+        allow update: if false;
+        allow delete: if true;
       }
     }
 
