@@ -453,13 +453,22 @@ export async function submitBallot(electionId, studentId, selectionsMapArg, extr
       throw new Error("Duplicate Vote Rejected: A ballot has already been cast and sealed for this Roll Number.");
     }
 
-    // Gate D: Read candidate records
-    const candidateIds = Object.values(ballotSelections);
-    for (const candId of candidateIds) {
+    // Gate D: Read and verify candidate records for every declared category
+    for (const cat of categories) {
+      const candId = ballotSelections[cat];
       const elCandRef = doc(db, "elections", targetElectionId, "candidates", candId);
       const rootCandRef = doc(db, "candidates", candId);
-      await transaction.get(elCandRef);
-      await transaction.get(rootCandRef);
+      const elCandSnap = await transaction.get(elCandRef);
+      const rootCandSnap = await transaction.get(rootCandRef);
+
+      if (!elCandSnap.exists() && !rootCandSnap.exists()) {
+        throw new Error(`Candidate '${candId}' selected for seat '${cat}' was not found on the official ballot roster.`);
+      }
+
+      const candData = elCandSnap.exists() ? elCandSnap.data() : rootCandSnap.data();
+      if (candData.category && candData.category.trim().toLowerCase() !== cat.trim().toLowerCase()) {
+        throw new Error(`Integrity violation: Candidate '${candData.name || candId}' is not registered for seat '${cat}'.`);
+      }
     }
 
     // ------------------------------------------------------------------------
@@ -540,11 +549,21 @@ export async function executeAtomicVote() {
   }
 
   const rollNo = state.studentData.rollNo;
+  const origFinalText = finalSubmitVoteBtn ? finalSubmitVoteBtn.textContent : "Confirm & Cast Official Ballot";
+  const origReviewText = reviewVoteBtn ? reviewVoteBtn.textContent : "Review & Cast Official Ballot";
+
+  // Immediate double-tap protection on slow connections
+  if (finalSubmitVoteBtn) {
+    finalSubmitVoteBtn.disabled = true;
+    finalSubmitVoteBtn.textContent = "Securing Ballot on Ledger...";
+  }
+  if (reviewVoteBtn) {
+    reviewVoteBtn.disabled = true;
+    reviewVoteBtn.textContent = "Securing Ballot on Ledger...";
+  }
+  if (submitSpinner) submitSpinner.classList.remove("hidden");
 
   try {
-    if (submitSpinner) submitSpinner.classList.remove("hidden");
-    if (finalSubmitVoteBtn) finalSubmitVoteBtn.disabled = true;
-
     // Execute atomic multi-seat transaction
     const receiptToken = await submitBallot(currentElectionId, rollNo, selectionsMap);
 
@@ -572,10 +591,27 @@ export async function executeAtomicVote() {
 
   } catch (error) {
     console.error("Atomic vote submission failure:", error);
-    showAlert(`Voting failed: ${error.message}`, "error");
+    let msg = error.message || "Failed to secure ballot on ledger.";
+    if (
+      error.code === "failed-precondition" ||
+      error.code === "unavailable" ||
+      msg.includes("contention") ||
+      msg.includes("network") ||
+      msg.includes("retry")
+    ) {
+      msg = "High ledger contention detected. Please click 'Confirm & Cast Official Ballot' again to retry.";
+    }
+    showAlert(`Voting failed: ${msg}`, "error");
   } finally {
     if (submitSpinner) submitSpinner.classList.add("hidden");
-    if (finalSubmitVoteBtn) finalSubmitVoteBtn.disabled = false;
+    if (finalSubmitVoteBtn) {
+      finalSubmitVoteBtn.disabled = false;
+      finalSubmitVoteBtn.textContent = origFinalText;
+    }
+    if (reviewVoteBtn) {
+      reviewVoteBtn.disabled = false;
+      reviewVoteBtn.textContent = origReviewText;
+    }
   }
 }
 

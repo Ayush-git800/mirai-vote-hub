@@ -138,16 +138,22 @@ export function parseWhitelistInput(rawText, section = "Section A") {
     try {
       const parsed = JSON.parse(trimmed);
       const arr = Array.isArray(parsed) ? parsed : [parsed];
-      return arr.map(item => {
-        const roll = (item.rollNo || item.id || item.roll_no || "").trim().toUpperCase();
-        return {
-          rollNo: roll,
-          name: item.name || `Student ${roll}`,
-          email: item.email || `${roll.toLowerCase()}@mirai.ac.in`,
-          section: section || item.section || "Section A",
-          hasVoted: false
-        };
-      }).filter(v => v.rollNo.length >= 4);
+      const seenJson = new Set();
+      const voters = [];
+      for (const item of arr) {
+        const roll = (item.rollNo || item.id || item.roll_no || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+        if (roll && roll.length >= 4 && !seenJson.has(roll)) {
+          seenJson.add(roll);
+          voters.push({
+            rollNo: roll,
+            name: item.name || `Student ${roll}`,
+            email: item.email || `${roll.toLowerCase()}@mirai.ac.in`,
+            section: section || item.section || "Section A",
+            hasVoted: false
+          });
+        }
+      }
+      return voters;
     } catch (e) {
       // Fall through to delimiter parser
     }
@@ -401,10 +407,22 @@ export async function createUnifiedElection({ title, section, categories, mode, 
 
     await setDoc(electionRef, electionData, { merge: true });
 
-    // 2. Parse and commit Whitelist
-    const voters = parseWhitelistInput(whitelistText, cleanScope);
+    // 2. Parse, deduplicate, and chunk-commit Whitelist
+    const rawVoters = parseWhitelistInput(whitelistText, cleanScope);
+    // Deduplicate entries with new Set to prevent batch collision
+    const seenRolls = new Set();
+    const voters = [];
+    for (const v of rawVoters) {
+      if (!seenRolls.has(v.rollNo)) {
+        seenRolls.add(v.rollNo);
+        voters.push(v);
+      }
+    }
+
     if (voters.length > 0) {
-      const CHUNK_SIZE = 400;
+      // Each voter writes 2 docs (election subcollection + root whitelist).
+      // Chunk size of 220 voters = 440 operations, staying safely under Firestore's 500 limit.
+      const CHUNK_SIZE = 220;
       for (let i = 0; i < voters.length; i += CHUNK_SIZE) {
         const chunk = voters.slice(i, i + CHUNK_SIZE);
         const batch = writeBatch(db);
@@ -509,13 +527,25 @@ export async function createElection(title, department, section, mode = "manual"
 }
 
 export async function uploadWhitelist(electionId = "section-a", rawText) {
-  const voters = parseWhitelistInput(rawText);
-  if (!voters || voters.length === 0) {
+  const rawVoters = parseWhitelistInput(rawText);
+  if (!rawVoters || rawVoters.length === 0) {
     showAlert("No valid student IDs found in input.", "error");
     return 0;
   }
 
-  const CHUNK_SIZE = 400;
+  // Deduplicate entries with new Set to prevent batch collision
+  const seenRolls = new Set();
+  const voters = [];
+  for (const v of rawVoters) {
+    if (!seenRolls.has(v.rollNo)) {
+      seenRolls.add(v.rollNo);
+      voters.push(v);
+    }
+  }
+
+  // Each voter writes 2 docs (election subcollection + root whitelist).
+  // Chunk size of 220 voters = 440 operations, staying safely under Firestore's 500 limit.
+  const CHUNK_SIZE = 220;
   let committed = 0;
 
   for (let i = 0; i < voters.length; i += CHUNK_SIZE) {
