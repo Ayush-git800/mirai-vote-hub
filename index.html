@@ -23,7 +23,7 @@
 <body>
   <!-- Global Application Wrapper -->
   <div id="app">
-    <!-- Cyberpunk Institutional Top Navigation -->
+    <!-- Cyberpunk Institutional Top Navigation & Sub-Tabs -->
     <header class="app-header">
       <div class="header-container">
         <!-- Brand Identity Slot -->
@@ -58,29 +58,29 @@
           <button id="adminToggleBtn" class="btn btn-cyber-outline btn-sm">Admin Access</button>
         </div>
       </div>
-    </header>
 
-    <!-- Navigation Tabs -->
-    <nav class="app-nav">
-      <div class="nav-container">
-        <button class="nav-tab active" data-tab="electionsTab" id="tabElectionsBtn">
-          <span class="tab-icon">📋</span>
-          <span>Active Elections</span>
-        </button>
-        <button class="nav-tab" data-tab="ballotTab" id="tabBallotBtn">
-          <span class="tab-icon">🗳️</span>
-          <span>Dual-Seat Ballot</span>
-        </button>
-        <button class="nav-tab" data-tab="resultsTab" id="tabResultsBtn">
-          <span class="tab-icon">📊</span>
-          <span>Certified Results</span>
-        </button>
-        <button class="nav-tab admin-only hidden" data-tab="adminTab" id="tabAdminBtn">
-          <span class="tab-icon">⚙️</span>
-          <span>Election Control Terminal</span>
-        </button>
-      </div>
-    </nav>
+      <!-- Navigation Tabs -->
+      <nav class="app-nav">
+        <div class="nav-container">
+          <button class="nav-tab active" data-tab="electionsTab" id="tabElectionsBtn">
+            <span class="tab-icon">📋</span>
+            <span>Active Elections</span>
+          </button>
+          <button class="nav-tab" data-tab="ballotTab" id="tabBallotBtn">
+            <span class="tab-icon">🗳️</span>
+            <span>Dual-Seat Ballot</span>
+          </button>
+          <button class="nav-tab" data-tab="resultsTab" id="tabResultsBtn">
+            <span class="tab-icon">📊</span>
+            <span>Certified Results</span>
+          </button>
+          <button class="nav-tab admin-only hidden" data-tab="adminTab" id="tabAdminBtn">
+            <span class="tab-icon">⚙️</span>
+            <span>Election Control Terminal</span>
+          </button>
+        </div>
+      </nav>
+    </header>
 
     <!-- Main Content Container -->
     <main class="app-main">
@@ -412,8 +412,6 @@
               </div>
             </div>
           </div>
-        </div>
-      </section>
         </div>
       </section>
 

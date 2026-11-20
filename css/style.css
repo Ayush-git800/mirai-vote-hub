@@ -145,6 +145,34 @@ p {
 
 .hidden {
   display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  border: none !important;
+}
+
+#electionListView.hidden,
+#ballotView.hidden,
+#votingSection.hidden,
+#authSection.hidden,
+#votedSuccessSection.hidden,
+#resultsView.hidden,
+#resultsSection.hidden,
+#adminView.hidden,
+#adminSection.hidden,
+.alert-banner.hidden {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 .mt-2 { margin-top: 0.5rem; }
@@ -158,22 +186,22 @@ p {
 .highlight-cyan { color: var(--neon-cyan) !important; }
 .highlight-magenta { color: var(--neon-magenta) !important; }
 
-/* Cyberpunk Header */
+/* Unified Sticky Top Header */
 .app-header {
-  background: var(--nav-bg);
-  border-bottom: 1px solid var(--border-subtle);
   position: sticky;
   top: 0;
-  z-index: 50;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  z-index: 100;
+  background: var(--nav-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-subtle);
   transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .header-container {
   max-width: 1280px;
   margin: 0 auto;
-  padding: 0.85rem 1.5rem;
+  padding: 0.75rem 1.5rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -379,12 +407,12 @@ p {
 
 /* Cyberpunk Nav Tabs */
 .app-nav {
-  background: var(--nav-bg);
-  border-bottom: 1px solid var(--border-subtle);
-  position: sticky;
-  top: 61px;
-  z-index: 45;
-  backdrop-filter: blur(12px);
+  background: transparent;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: none;
+  position: static;
+  z-index: auto;
+  backdrop-filter: none;
   transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
@@ -432,7 +460,8 @@ p {
   max-width: 1280px;
   width: 100%;
   margin: 0 auto;
-  padding: 2rem 1.5rem 6rem;
+  padding: 24px 1.5rem 6rem !important;
+  padding-top: 24px !important;
 }
 
 /* Alert Banner */
@@ -1439,27 +1468,32 @@ textarea:focus,
   gap: 24px;
 }
 
+#adminView .admin-card,
 .admin-card {
-  background: var(--bg-surface);
+  padding: 24px !important;
+  border-radius: 14px !important;
+  background: var(--card-bg) !important;
+  border: 1px solid var(--card-border) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 16px !important;
+  box-shadow: var(--shadow-sm);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  padding: 24px;
 }
 
 .admin-card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0;
 }
 
 .card-badge {
   font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
-  padding: 0.15rem 0.5rem;
+  padding: 0.2rem 0.55rem;
   border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border-subtle);
@@ -1469,13 +1503,20 @@ textarea:focus,
 .admin-help-text {
   font-size: 0.82rem;
   color: var(--text-secondary);
-  margin-bottom: 1rem;
+  margin-bottom: 0;
+  line-height: 1.45;
+}
+
+.admin-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .file-drop-zone {
   border: 2px dashed var(--input-border);
   border-radius: var(--radius-md);
-  padding: 1.25rem;
+  padding: 1rem;
   text-align: center;
   cursor: pointer;
   transition: var(--transition);
@@ -1500,19 +1541,21 @@ textarea:focus,
 
 .form-row {
   display: flex;
-  gap: 1rem;
+  gap: 12px;
+  align-items: flex-end;
 }
 
 .candidate-form-inline {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 14px;
 }
 
 .candidate-management-tables {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 1.5rem;
+  gap: 16px;
+  margin-top: 8px;
 }
 
 .candidate-table-wrapper h4 {

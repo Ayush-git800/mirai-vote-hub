@@ -63,7 +63,10 @@ export function authenticateAdmin(username, password) {
 
     // Clear any alert banners
     const alertBanner = document.getElementById("alertBanner");
-    if (alertBanner) alertBanner.classList.add("hidden");
+    if (alertBanner) {
+      alertBanner.classList.add("hidden");
+      alertBanner.style.display = "none";
+    }
 
     // Reveal Admin Terminal Tab & View
     const tabAdminBtn = document.getElementById("tabAdminBtn");

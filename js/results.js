@@ -803,18 +803,16 @@ export function initTabNavigation() {
   const adminView = document.getElementById("adminView") || document.getElementById("adminSection");
 
   function hideAllViews() {
-    electionListView?.classList.add("hidden");
-    ballotView?.classList.add("hidden");
-    authSection?.classList.add("hidden");
-    votingSection?.classList.add("hidden");
-    votedSuccessSection?.classList.add("hidden");
-    resultsView?.classList.add("hidden");
-    adminView?.classList.add("hidden");
-    document.getElementById("resultsSection")?.classList.add("hidden");
-    document.getElementById("adminSection")?.classList.add("hidden");
+    [electionListView, ballotView, authSection, votingSection, votedSuccessSection, resultsView, adminView, document.getElementById("resultsSection"), document.getElementById("adminSection")].forEach(el => {
+      if (el) {
+        el.classList.add("hidden");
+        el.style.display = "none";
+      }
+    });
   }
 
   function activateTab(tabKey) {
+    window.scrollTo({ top: 0, behavior: "instant" });
     tabs.forEach(t => {
       if (t.dataset.tab === tabKey) {
         t.classList.add("active");
@@ -826,13 +824,30 @@ export function initTabNavigation() {
     hideAllViews();
 
     if (tabKey === "electionsTab") {
-      electionListView?.classList.remove("hidden");
+      if (electionListView) {
+        electionListView.classList.remove("hidden");
+        electionListView.style.display = "";
+      }
     } else if (tabKey === "resultsTab") {
-      resultsView?.classList.remove("hidden");
-      document.getElementById("resultsSection")?.classList.remove("hidden");
+      if (resultsView) {
+        resultsView.classList.remove("hidden");
+        resultsView.style.display = "";
+      }
+      const rs = document.getElementById("resultsSection");
+      if (rs) {
+        rs.classList.remove("hidden");
+        rs.style.display = "";
+      }
     } else if (tabKey === "adminTab") {
-      adminView?.classList.remove("hidden");
-      document.getElementById("adminSection")?.classList.remove("hidden");
+      if (adminView) {
+        adminView.classList.remove("hidden");
+        adminView.style.display = "";
+      }
+      const as = document.getElementById("adminSection");
+      if (as) {
+        as.classList.remove("hidden");
+        as.style.display = "";
+      }
       window.dispatchEvent(new CustomEvent("adminTabOpened"));
     } else {
       // ballotTab
@@ -843,13 +858,13 @@ export function initTabNavigation() {
       const isStudentVerified = studentRoll && !studentRoll.includes("--");
 
       if (hasVoted) {
-        ballotView?.classList.remove("hidden");
-        votedSuccessSection?.classList.remove("hidden");
+        if (ballotView) { ballotView.classList.remove("hidden"); ballotView.style.display = ""; }
+        if (votedSuccessSection) { votedSuccessSection.classList.remove("hidden"); votedSuccessSection.style.display = ""; }
       } else if (isStudentVerified) {
-        ballotView?.classList.remove("hidden");
-        votingSection?.classList.remove("hidden");
+        if (ballotView) { ballotView.classList.remove("hidden"); ballotView.style.display = ""; }
+        if (votingSection) { votingSection.classList.remove("hidden"); votingSection.style.display = ""; }
       } else {
-        authSection?.classList.remove("hidden");
+        if (authSection) { authSection.classList.remove("hidden"); authSection.style.display = ""; }
       }
     }
   }

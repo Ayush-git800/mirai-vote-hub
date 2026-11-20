@@ -40,19 +40,30 @@ const alertBanner = document.getElementById("alertBanner");
 const alertMessage = document.getElementById("alertMessage");
 const alertDismiss = document.getElementById("alertDismiss");
 
+let alertTimer = null;
+
 // Show alert banner
 export function showAlert(message, type = "info") {
   if (!alertBanner || !alertMessage) return;
   alertBanner.className = `alert-banner ${type}`;
   alertMessage.textContent = message;
   alertBanner.classList.remove("hidden");
-  setTimeout(() => {
+  alertBanner.style.display = "flex";
+
+  if (alertTimer) clearTimeout(alertTimer);
+  alertTimer = setTimeout(() => {
     alertBanner.classList.add("hidden");
-  }, 6000);
+    alertBanner.style.display = "none";
+  }, 5000);
 }
 
 if (alertDismiss) {
-  alertDismiss.addEventListener("click", () => alertBanner.classList.add("hidden"));
+  alertDismiss.addEventListener("click", () => {
+    if (alertBanner) {
+      alertBanner.classList.add("hidden");
+      alertBanner.style.display = "none";
+    }
+  });
 }
 
 // Cryptographic SHA-256 Hash Function for Passkeys
