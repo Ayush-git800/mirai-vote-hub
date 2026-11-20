@@ -193,121 +193,174 @@ function updateTurnoutUI(voted, total) {
   if (statTurnoutRemaining) statTurnoutRemaining.textContent = remaining.toString();
 }
 
-// Candidates Results Subscription (Unsealed during Stage 2)
+// Candidates Results Subscription (Dynamic Categories, Unsealed during Stage 2)
 function subscribeToCandidates() {
-  const candidatesCol = collection(db, "candidates");
+  const electionId = currentElectionMetadata?.id || "section-a";
 
-  onSnapshot(candidatesCol, (snapshot) => {
-    const boys = [];
-    const girls = [];
+  getDoc(doc(db, "elections", electionId)).then(electionSnap => {
+    let categories = ["Boy CR", "Girl CR"];
+    let electionTitle = "CR Election 2026";
+    let electionSection = "Section A";
 
-    snapshot.forEach(docSnap => {
-      const data = { id: docSnap.id, ...docSnap.data() };
-      if (data.category === "boy_cr") {
-        boys.push(data);
-      } else if (data.category === "girl_cr") {
-        girls.push(data);
+    if (electionSnap.exists()) {
+      const edata = electionSnap.data();
+      if (Array.isArray(edata.categories) && edata.categories.length > 0) {
+        categories = edata.categories;
       }
+      if (edata.title) electionTitle = edata.title;
+      if (edata.section) electionSection = edata.section;
+    }
+
+    const electionCandCol = collection(db, "elections", electionId, "candidates");
+    onSnapshot(electionCandCol, (snapshot) => {
+      let candidatesList = [];
+      if (!snapshot.empty) {
+        snapshot.forEach(docSnap => candidatesList.push({ id: docSnap.id, ...docSnap.data() }));
+      }
+
+      if (candidatesList.length === 0) {
+        // Fallback to root candidates collection
+        getDocs(collection(db, "candidates")).then(rootSnap => {
+          candidatesList = [];
+          rootSnap.forEach(d => candidatesList.push({ id: d.id, ...d.data() }));
+          renderDynamicCategoryResults(categories, candidatesList, electionTitle, electionSection, electionId);
+        });
+      } else {
+        renderDynamicCategoryResults(categories, candidatesList, electionTitle, electionSection, electionId);
+      }
+    }, (err) => {
+      console.error("Candidates results subscription error:", err);
     });
-
-    // Sort descending by voteCount
-    boys.sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0));
-    girls.sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0));
-
-    // Track certified winners for certificate generation
-    const isPublished = electionStatus === "published" || electionStage === 2;
-    if (boys.length > 0 && boys[0].voteCount > 0) {
-      certifiedBoyWinner = boys[0];
-      if (isPublished && downloadBoyCertBtn) downloadBoyCertBtn.classList.remove("hidden");
-    } else {
-      certifiedBoyWinner = null;
-      if (downloadBoyCertBtn) downloadBoyCertBtn.classList.add("hidden");
-    }
-
-    if (girls.length > 0 && girls[0].voteCount > 0) {
-      certifiedGirlWinner = girls[0];
-      if (isPublished && downloadGirlCertBtn) downloadGirlCertBtn.classList.remove("hidden");
-    } else {
-      certifiedGirlWinner = null;
-      if (downloadGirlCertBtn) downloadGirlCertBtn.classList.add("hidden");
-    }
-
-    renderResultsTable(boys, boyResultsBody, boyWinnerPill, "Boy CR");
-    renderResultsTable(girls, girlResultsBody, girlWinnerPill, "Girl CR");
-  }, (err) => {
-    console.error("Candidates results subscription error:", err);
+  }).catch(e => {
+    console.error("Error fetching election categories:", e);
   });
 }
 
-function renderResultsTable(candidates, tbody, winnerPill, seatLabel) {
-  if (!tbody) return;
-  tbody.innerHTML = "";
+function renderDynamicCategoryResults(categories, candidatesList, electionTitle, electionSection, electionId) {
+  const container = document.getElementById("dynamicResultsCategories");
+  if (!container) return;
 
-  if (candidates.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 2rem; color: var(--text-muted);">No candidates registered for ${seatLabel}</td></tr>`;
-    if (winnerPill) {
-      winnerPill.textContent = "No Candidates";
-      winnerPill.style.background = "rgba(255, 255, 255, 0.05)";
-      winnerPill.style.borderColor = "var(--border-subtle)";
-      winnerPill.style.color = "var(--text-muted)";
-    }
-    return;
-  }
+  container.innerHTML = "";
+  const isPublished = electionStatus === "published" || electionStage === 2;
 
-  const totalCategoryVotes = candidates.reduce((sum, c) => sum + (c.voteCount || 0), 0);
-  const highestVotes = candidates[0].voteCount || 0;
+  categories.forEach((cat, idx) => {
+    // Filter candidates matching this category
+    const cands = candidatesList.filter(c => {
+      const rawCat = c.category || "";
+      return (
+        rawCat.toLowerCase() === cat.toLowerCase() ||
+        (cat === "Boy CR" && rawCat === "boy_cr") ||
+        (cat === "Girl CR" && rawCat === "girl_cr")
+      );
+    });
 
-  // Set Winner Pill
-  if (winnerPill) {
-    if (highestVotes > 0) {
-      winnerPill.innerHTML = `👑 Certified Leader: <strong>${candidates[0].name}</strong> (${highestVotes} votes)`;
-      winnerPill.style.background = "rgba(16, 185, 129, 0.18)";
-      winnerPill.style.borderColor = "var(--neon-emerald)";
-      winnerPill.style.color = "var(--neon-emerald)";
-    } else {
-      winnerPill.textContent = "Polls Active (Zero votes cast)";
-      winnerPill.style.background = "rgba(255, 184, 0, 0.15)";
-      winnerPill.style.borderColor = "var(--neon-amber)";
-      winnerPill.style.color = "var(--neon-amber)";
-    }
-  }
+    // Sort descending by voteCount
+    cands.sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0));
 
-  candidates.forEach((cand, index) => {
-    const count = cand.voteCount || 0;
-    const share = totalCategoryVotes > 0 ? ((count / totalCategoryVotes) * 100).toFixed(1) : "0.0";
-    const isWinner = index === 0 && count > 0;
+    const totalCategoryVotes = cands.reduce((sum, c) => sum + (c.voteCount || 0), 0);
+    const winner = (cands.length > 0 && (cands[0].voteCount || 0) > 0) ? cands[0] : null;
 
-    const row = document.createElement("tr");
-    if (isWinner) {
-      row.className = "winner-row";
-    }
+    const block = document.createElement("div");
+    block.className = `result-category-block border-accent-${idx % 5}`;
+    block.style.background = "var(--bg-surface)";
+    block.style.border = "1px solid var(--border-subtle)";
+    block.style.borderRadius = "var(--radius-lg)";
+    block.style.padding = "1.5rem";
 
-    row.innerHTML = `
-      <td>
-        <div style="display:flex; align-items:center; gap:0.6rem;">
-          ${isWinner ? '<span class="crown-badge" title="Certified Winner">👑</span>' : ''}
-          <strong style="${isWinner ? 'color: var(--neon-cyan);' : ''}">${cand.name}</strong>
+    const winnerPillText = winner
+      ? `👑 Certified Leader: <strong>${winner.name}</strong> (${winner.voteCount} votes)`
+      : `Polls Active (Zero votes cast)`;
+
+    const winnerPillStyle = winner
+      ? `background: rgba(16, 185, 129, 0.18); border: 1px solid var(--neon-emerald); color: var(--neon-emerald);`
+      : `background: rgba(255, 184, 0, 0.15); border: 1px solid var(--neon-amber); color: var(--neon-amber);`;
+
+    block.innerHTML = `
+      <div class="cat-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem; margin-bottom: 1.25rem;">
+        <div>
+          <h3 style="margin: 0; font-size: 1.15rem;">🏆 Certified Result: ${cat}</h3>
+          <span class="winner-pill" style="${winnerPillStyle}; font-size: 0.78rem; padding: 0.25rem 0.75rem; border-radius: var(--radius-full); display: inline-block; margin-top: 0.35rem;">
+            ${winnerPillText}
+          </span>
         </div>
-      </td>
-      <td class="mono">${cand.rollNo || 'Certified'}</td>
-      <td class="mono font-bold" style="${isWinner ? 'color: var(--neon-cyan); font-weight:700;' : ''}">${count}</td>
-      <td>
-        <div class="result-bar-cell">
-          <div class="result-bar-text">
-            <span>${share}%</span>
-          </div>
-          <div class="result-bar-track">
-            <div class="result-bar-fill ${isWinner ? 'winner-bar' : ''}" style="width: ${share}%;"></div>
-          </div>
-        </div>
-      </td>
-      <td>
-        <span class="badge ${isWinner ? 'badge-winner' : 'badge-secondary'}">
-          ${isWinner ? 'WINNER #1' : `Rank #${index + 1}`}
-        </span>
-      </td>
+        ${winner && isPublished ? `
+          <button class="btn btn-certificate download-cat-cert-btn">
+            <span>📜 Download Winner Certificate (PDF)</span>
+          </button>
+        ` : ''}
+      </div>
+      <div class="results-table-container">
+        <table class="results-table">
+          <thead>
+            <tr>
+              <th>Candidate</th>
+              <th>Roll Number</th>
+              <th>Votes</th>
+              <th>Percentage Share</th>
+              <th>Standing</th>
+            </tr>
+          </thead>
+          <tbody class="cat-results-tbody"></tbody>
+        </table>
+      </div>
     `;
-    tbody.appendChild(row);
+
+    // Connect dynamic certificate button
+    const certBtn = block.querySelector(".download-cat-cert-btn");
+    if (certBtn && winner) {
+      certBtn.addEventListener("click", () => {
+        generateWinnerCertificate({
+          winnerName: winner.name,
+          position: cat.toUpperCase(),
+          section: electionSection || "Section A",
+          electionTitle: electionTitle || "CR Election 2026",
+          auditId: `MVH-${electionId.slice(-4).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`
+        });
+      });
+    }
+
+    const tbody = block.querySelector(".cat-results-tbody");
+    if (cands.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 2rem; color: var(--text-muted);">No candidates registered for ${cat}</td></tr>`;
+    } else {
+      cands.forEach((cand, index) => {
+        const count = cand.voteCount || 0;
+        const share = totalCategoryVotes > 0 ? ((count / totalCategoryVotes) * 100).toFixed(1) : "0.0";
+        const isWinner = index === 0 && count > 0;
+
+        const row = document.createElement("tr");
+        if (isWinner) row.className = "winner-row";
+
+        row.innerHTML = `
+          <td>
+            <div style="display:flex; align-items:center; gap:0.6rem;">
+              ${isWinner ? '<span class="crown-badge" title="Certified Winner">👑</span>' : ''}
+              <strong style="${isWinner ? 'color: var(--neon-cyan);' : ''}">${cand.name}</strong>
+            </div>
+          </td>
+          <td class="mono">${cand.rollNo || 'Certified'}</td>
+          <td class="mono font-bold" style="${isWinner ? 'color: var(--neon-cyan); font-weight:700;' : ''}">${count}</td>
+          <td>
+            <div class="result-bar-cell">
+              <div class="result-bar-text">
+                <span>${share}%</span>
+              </div>
+              <div class="result-bar-track">
+                <div class="result-bar-fill ${isWinner ? 'winner-bar' : ''}" style="width: ${share}%;"></div>
+              </div>
+            </div>
+          </td>
+          <td>
+            <span class="badge ${isWinner ? 'badge-winner' : 'badge-secondary'}">
+              ${isWinner ? 'WINNER #1' : `Rank #${index + 1}`}
+            </span>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    container.appendChild(block);
   });
 }
 
@@ -725,23 +778,33 @@ export async function exportAuditCsv(electionId = "section-a") {
   try {
     const electionSnap = await getDoc(doc(db, "elections", electionId));
     const electionData = electionSnap.exists() ? electionSnap.data() : {};
-    const title = electionData.title || "Section A - CR Election 2026";
+    const title = electionData.title || "CR Election 2026";
     const section = electionData.section || "Section A";
     const status = electionData.status || "published";
+    const categories = Array.isArray(electionData.categories) && electionData.categories.length > 0
+      ? electionData.categories
+      : ["Boy CR", "Girl CR"];
 
-    const candSnap = await getDocs(collection(db, "candidates"));
-    const candidates = [];
-    candSnap.forEach(d => candidates.push({ id: d.id, ...d.data() }));
+    // Fetch candidates from election subcollection, fallback to root
+    let candSnap = await getDocs(collection(db, "elections", electionId, "candidates"));
+    let candidates = [];
+    if (!candSnap.empty) {
+      candSnap.forEach(d => candidates.push({ id: d.id, ...d.data() }));
+    } else {
+      candSnap = await getDocs(collection(db, "candidates"));
+      candSnap.forEach(d => candidates.push({ id: d.id, ...d.data() }));
+    }
 
-    const wlSnap = await getDocs(collection(db, "whitelist"));
+    // Fetch whitelist
+    let wlSnap = await getDocs(collection(db, "elections", electionId, "whitelist"));
+    if (wlSnap.empty) {
+      wlSnap = await getDocs(collection(db, "whitelist"));
+    }
     const totalVoters = wlSnap.size;
     let votesCast = 0;
     wlSnap.forEach(d => {
       if (d.data().hasVoted === true) votesCast++;
     });
-
-    const boyVotes = candidates.filter(c => c.category === "boy_cr").reduce((s, c) => s + (c.voteCount || 0), 0);
-    const girlVotes = candidates.filter(c => c.category === "girl_cr").reduce((s, c) => s + (c.voteCount || 0), 0);
 
     const nowIso = new Date().toISOString();
 
@@ -754,23 +817,27 @@ export async function exportAuditCsv(electionId = "section-a") {
     csv += `Total Verified Ballots Cast,${votesCast}\r\n`;
     csv += `Turnout Rate,${totalVoters > 0 ? ((votesCast / totalVoters) * 100).toFixed(2) : "0.00"}%\r\n\r\n`;
 
-    csv += `CANDIDATE RESULTS BREAKDOWN\r\n`;
-    csv += `Position,Candidate Name,Roll Number,Votes Received,Percentage Share,Status\r\n`;
+    csv += `CANDIDATE RESULTS BREAKDOWN BY ELECTORAL SEAT\r\n`;
+    csv += `Position / Seat,Candidate Name,Roll Number,Votes Received,Percentage Share,Standing\r\n`;
 
-    const boys = candidates.filter(c => c.category === "boy_cr").sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0));
-    boys.forEach((c, idx) => {
-      const cnt = c.voteCount || 0;
-      const pct = boyVotes > 0 ? ((cnt / boyVotes) * 100).toFixed(2) : "0.00";
-      const standing = idx === 0 && cnt > 0 ? "CERTIFIED WINNER" : `Rank #${idx + 1}`;
-      csv += `"Boy Class Representative","${c.name}","${c.rollNo || ''}",${cnt},${pct}%,${standing}\r\n`;
-    });
+    categories.forEach(cat => {
+      const cands = candidates.filter(c => {
+        const raw = c.category || "";
+        return (
+          raw.toLowerCase() === cat.toLowerCase() ||
+          (cat === "Boy CR" && raw === "boy_cr") ||
+          (cat === "Girl CR" && raw === "girl_cr")
+        );
+      }).sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0));
 
-    const girls = candidates.filter(c => c.category === "girl_cr").sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0));
-    girls.forEach((c, idx) => {
-      const cnt = c.voteCount || 0;
-      const pct = girlVotes > 0 ? ((cnt / girlVotes) * 100).toFixed(2) : "0.00";
-      const standing = idx === 0 && cnt > 0 ? "CERTIFIED WINNER" : `Rank #${idx + 1}`;
-      csv += `"Girl Class Representative","${c.name}","${c.rollNo || ''}",${cnt},${pct}%,${standing}\r\n`;
+      const catVotes = cands.reduce((s, c) => s + (c.voteCount || 0), 0);
+
+      cands.forEach((c, idx) => {
+        const cnt = c.voteCount || 0;
+        const pct = catVotes > 0 ? ((cnt / catVotes) * 100).toFixed(2) : "0.00";
+        const standing = idx === 0 && cnt > 0 ? "CERTIFIED WINNER" : `Rank #${idx + 1}`;
+        csv += `"${cat}","${c.name}","${c.rollNo || ''}",${cnt},${pct}%,${standing}\r\n`;
+      });
     });
 
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });

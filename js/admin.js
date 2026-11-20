@@ -22,6 +22,12 @@ import {
 // Active election being managed in modal
 let activeManageElectionId = null;
 
+// Dynamic categories for new election builder (default: ["Boy CR", "Girl CR"])
+let creatorCategories = ["Boy CR", "Girl CR"];
+
+// Dynamic categories for the modal
+let modalCategories = ["Boy CR", "Girl CR"];
+
 // In-memory staged candidates for new election architect
 let stagedCandidates = [];
 
@@ -192,12 +198,76 @@ export function parseWhitelistInput(rawText, section = "Section A") {
 }
 
 // ============================================================================
-// 3. Staged Candidates Management (Inline Builder)
+// 3. Dynamic Category Builder (Creator & Staging)
+// ============================================================================
+
+export function renderCreatorCategories() {
+  const container = document.getElementById("activeCategoriesList");
+  const selectEl = document.getElementById("stagedCandCategory");
+  if (!container) return;
+
+  container.innerHTML = "";
+  creatorCategories.forEach((cat, idx) => {
+    const chip = document.createElement("div");
+    chip.className = `active-category-chip accent-${idx % 5}`;
+    chip.innerHTML = `
+      <span>${cat}</span>
+      ${creatorCategories.length > 1 ? `<button type="button" class="remove-cat-btn" data-cat="${cat}" title="Remove Seat">&times;</button>` : ''}
+    `;
+    const removeBtn = chip.querySelector(".remove-cat-btn");
+    if (removeBtn) {
+      removeBtn.addEventListener("click", () => removeCreatorCategory(cat));
+    }
+    container.appendChild(chip);
+  });
+
+  // Update candidate registry dropdown
+  if (selectEl) {
+    const prevVal = selectEl.value;
+    selectEl.innerHTML = "";
+    creatorCategories.forEach(cat => {
+      const opt = document.createElement("option");
+      opt.value = cat;
+      opt.textContent = cat;
+      selectEl.appendChild(opt);
+    });
+    if (creatorCategories.includes(prevVal)) {
+      selectEl.value = prevVal;
+    }
+  }
+
+  // Update staged nominees preview grid
+  renderStagedCandidates();
+}
+
+export function addCreatorCategory(catName) {
+  const clean = (catName || "").trim();
+  if (!clean) return;
+  if (creatorCategories.some(c => c.toLowerCase() === clean.toLowerCase())) {
+    showAlert(`Seat '${clean}' is already in this election.`, "info");
+    return;
+  }
+  creatorCategories.push(clean);
+  renderCreatorCategories();
+  showAlert(`Added electoral seat: '${clean}'`, "success");
+}
+
+export function removeCreatorCategory(catName) {
+  if (creatorCategories.length <= 1) {
+    showAlert("An election must have at least one electoral seat/category.", "error");
+    return;
+  }
+  creatorCategories = creatorCategories.filter(c => c !== catName);
+  stagedCandidates = stagedCandidates.filter(c => c.category !== catName);
+  renderCreatorCategories();
+}
+
+// ============================================================================
+// 4. Staged Candidates Management
 // ============================================================================
 
 function renderStagedCandidates() {
-  const boyList = document.getElementById("stagedBoyCandidatesList");
-  const girlList = document.getElementById("stagedGirlCandidatesList");
+  const container = document.getElementById("stagedCandidatesContainer");
   const countBadge = document.getElementById("stagedCandCountBadge");
 
   if (countBadge) {
@@ -205,15 +275,31 @@ function renderStagedCandidates() {
     countBadge.className = stagedCandidates.length > 0 ? "badge badge-primary ml-auto" : "badge badge-secondary ml-auto";
   }
 
-  const boys = stagedCandidates.filter(c => c.category === "boy_cr");
-  const girls = stagedCandidates.filter(c => c.category === "girl_cr");
+  if (!container) return;
+  container.innerHTML = "";
 
-  if (boyList) {
-    if (boys.length === 0) {
-      boyList.innerHTML = `<p class="text-muted" style="font-size:0.8rem; padding: 0.5rem 0;">No Boy CR nominees staged yet.</p>`;
+  creatorCategories.forEach((cat, idx) => {
+    const cands = stagedCandidates.filter(c => c.category === cat);
+    const wrapper = document.createElement("div");
+    wrapper.className = `candidate-table-wrapper border-accent-${idx % 5}`;
+    wrapper.style.padding = "1rem";
+    wrapper.style.background = "var(--bg-surface)";
+    wrapper.style.borderRadius = "var(--radius-md)";
+    wrapper.style.border = "1px solid var(--border-subtle)";
+
+    wrapper.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+        <h4 style="margin: 0; font-size: 0.95rem; color: var(--text-primary);">${cat} Nominees (${cands.length})</h4>
+        <span class="badge badge-accent-${idx % 5}" style="font-size: 0.7rem;">Seat #${idx + 1}</span>
+      </div>
+      <div class="admin-candidate-list" id="stagedList_${idx}"></div>
+    `;
+
+    const listEl = wrapper.querySelector(`#stagedList_${idx}`);
+    if (cands.length === 0) {
+      listEl.innerHTML = `<p class="text-muted" style="font-size:0.8rem; padding: 0.4rem 0;">No nominees staged for this seat yet.</p>`;
     } else {
-      boyList.innerHTML = "";
-      boys.forEach((c) => {
+      cands.forEach(c => {
         const item = document.createElement("div");
         item.className = "staged-cand-item";
         item.innerHTML = `
@@ -221,38 +307,17 @@ function renderStagedCandidates() {
             <strong>${c.name}</strong> 
             <span class="mono" style="color:var(--neon-cyan);">(${c.rollNo})</span>
           </div>
-          <button type="button" class="btn btn-danger btn-sm staged-remove-btn" data-roll="${c.rollNo}">&times; Remove</button>
+          <button type="button" class="btn btn-danger btn-sm staged-remove-btn" data-roll="${c.rollNo}" data-cat="${c.category}">&times; Remove</button>
         `;
         item.querySelector(".staged-remove-btn").addEventListener("click", () => {
-          removeStagedCandidate(c.rollNo);
+          removeStagedCandidate(c.rollNo, c.category);
         });
-        boyList.appendChild(item);
+        listEl.appendChild(item);
       });
     }
-  }
 
-  if (girlList) {
-    if (girls.length === 0) {
-      girlList.innerHTML = `<p class="text-muted" style="font-size:0.8rem; padding: 0.5rem 0;">No Girl CR nominees staged yet.</p>`;
-    } else {
-      girlList.innerHTML = "";
-      girls.forEach((c) => {
-        const item = document.createElement("div");
-        item.className = "staged-cand-item";
-        item.innerHTML = `
-          <div>
-            <strong>${c.name}</strong> 
-            <span class="mono" style="color:var(--neon-magenta);">(${c.rollNo})</span>
-          </div>
-          <button type="button" class="btn btn-danger btn-sm staged-remove-btn" data-roll="${c.rollNo}">&times; Remove</button>
-        `;
-        item.querySelector(".staged-remove-btn").addEventListener("click", () => {
-          removeStagedCandidate(c.rollNo);
-        });
-        girlList.appendChild(item);
-      });
-    }
-  }
+    container.appendChild(wrapper);
+  });
 }
 
 function addStagedCandidate() {
@@ -264,7 +329,7 @@ function addStagedCandidate() {
 
   const name = (nameEl?.value || "").trim();
   const roll = (rollEl?.value || "").trim().toUpperCase();
-  const cat = catEl?.value || "boy_cr";
+  const cat = catEl?.value || creatorCategories[0] || "Boy CR";
   const manifesto = (manifestoEl?.value || "").trim();
   const photo = (photoEl?.value || "").trim();
 
@@ -277,9 +342,9 @@ function addStagedCandidate() {
     return;
   }
 
-  // Prevent duplicate roll in staging
-  if (stagedCandidates.some(c => c.rollNo === roll)) {
-    showAlert(`Candidate with Roll Number '${roll}' is already staged.`, "error");
+  // Prevent duplicate roll in staging for the same category
+  if (stagedCandidates.some(c => c.rollNo === roll && c.category === cat)) {
+    showAlert(`Candidate with Roll Number '${roll}' is already staged for ${cat}.`, "error");
     return;
   }
 
@@ -291,30 +356,31 @@ function addStagedCandidate() {
     photoUrl: photo || ""
   });
 
-  // Clear inputs
   if (nameEl) nameEl.value = "";
   if (rollEl) rollEl.value = "";
   if (manifestoEl) manifestoEl.value = "";
   if (photoEl) photoEl.value = "";
 
   renderStagedCandidates();
-  showAlert(`Added '${name}' to staged nominees.`, "success");
+  showAlert(`Added '${name}' as nominee for ${cat}.`, "success");
 }
 
-function removeStagedCandidate(rollNo) {
-  stagedCandidates = stagedCandidates.filter(c => c.rollNo !== rollNo);
+function removeStagedCandidate(rollNo, category) {
+  stagedCandidates = stagedCandidates.filter(c => !(c.rollNo === rollNo && c.category === category));
   renderStagedCandidates();
 }
 
 // ============================================================================
-// 4. Unified Election Creation (Atomically commits Election + Whitelist + Candidates)
+// 5. Unified Election Creation (Atomically commits Election + Categories + Whitelist + Candidates)
 // ============================================================================
 
-export async function createUnifiedElection({ title, section, mode, durationMinutes, whitelistText, candidatesList }) {
+export async function createUnifiedElection({ title, section, categories, mode, durationMinutes, whitelistText, candidatesList }) {
   if (!title) throw new Error("Election title is required.");
   const cleanScope = (section || "Section A").trim();
   const slug = cleanScope.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
   const electionId = slug ? `election-${slug}` : `election-${Date.now().toString(36)}`;
+
+  const finalCategories = categories && categories.length > 0 ? categories : ["Boy CR", "Girl CR"];
 
   try {
     // 1. Election Document Data
@@ -323,6 +389,7 @@ export async function createUnifiedElection({ title, section, mode, durationMinu
       id: electionId,
       title: title.trim(),
       section: cleanScope,
+      categories: finalCategories,
       status: "draft",
       revealStage: 1,
       votingMode: mode || "manual",
@@ -376,8 +443,9 @@ export async function createUnifiedElection({ title, section, mode, durationMinu
     if (candidatesList && candidatesList.length > 0) {
       const candBatch = writeBatch(db);
       candidatesList.forEach(cand => {
+        const safeCat = cand.category.toLowerCase().replace(/[^a-z0-9]/g, "_");
         const safeRoll = cand.rollNo.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
-        const candId = `${cand.category}_${safeRoll}`;
+        const candId = `${safeCat}_${safeRoll}`;
         const candData = {
           id: candId,
           electionId: electionId,
@@ -408,6 +476,7 @@ export async function createUnifiedElection({ title, section, mode, durationMinu
       activeElectionId: electionId,
       title: title.trim(),
       section: cleanScope,
+      categories: finalCategories,
       status: "draft",
       revealStage: 1,
       votingMode: mode || "manual",
@@ -416,7 +485,7 @@ export async function createUnifiedElection({ title, section, mode, durationMinu
       updatedAt: serverTimestamp()
     }, { merge: true });
 
-    showAlert(`Election '${title}' created successfully in Draft with ${voters.length} whitelisted voters and ${candidatesList.length} nominees!`, "success");
+    showAlert(`Election '${title}' created successfully in Draft with ${voters.length} whitelisted voters and ${candidatesList.length} nominees across [${finalCategories.join(", ")}]!`, "success");
     return electionId;
 
   } catch (err) {
@@ -431,6 +500,7 @@ export async function createElection(title, department, section, mode = "manual"
   return createUnifiedElection({
     title,
     section: section || "Section A",
+    categories: ["Boy CR", "Girl CR"],
     mode,
     durationMinutes,
     whitelistText: "",
@@ -486,14 +556,15 @@ export async function uploadWhitelist(electionId = "section-a", rawText) {
 
 export async function addCandidate(electionId = "section-a", { name, category, photoUrl, manifesto, rollNo }) {
   if (!name) throw new Error("Candidate name is required.");
+  const safeCat = (category || "seat").toLowerCase().replace(/[^a-z0-9]/g, "_");
   const safeRoll = (rollNo || name).trim().replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
-  const candId = `${category}_${safeRoll}`;
+  const candId = `${safeCat}_${safeRoll}`;
 
   const candidateData = {
     id: candId,
     electionId: electionId,
     name: name.trim(),
-    category: category,
+    category: category || "Boy CR",
     rollNo: (rollNo || "Certified").trim().toUpperCase(),
     manifesto: manifesto || "Committed to cohort student welfare and representation.",
     photoUrl: photoUrl || "",
@@ -507,12 +578,12 @@ export async function addCandidate(electionId = "section-a", { name, category, p
   const rootCandRef = doc(db, "candidates", candId);
   await setDoc(rootCandRef, candidateData, { merge: true });
 
-  showAlert(`Candidate '${name}' registered for ${category === "boy_cr" ? "Boy CR" : "Girl CR"} in ${electionId}!`, "success");
+  showAlert(`Candidate '${name}' registered for ${category} in ${electionId}!`, "success");
   return candId;
 }
 
 // ============================================================================
-// 5. Election Lifecycle Status Transitions per Election
+// 6. Election Lifecycle Status Transitions per Election
 // ============================================================================
 
 export async function setElectionStatus(electionId, status) {
@@ -605,7 +676,7 @@ export async function deleteElection(electionId) {
 }
 
 // ============================================================================
-// 6. Manage Election Modal (Manage Whitelist & Candidates per Election)
+// 7. Manage Election Modal (Manage Categories, Whitelist & Candidates)
 // ============================================================================
 
 export async function openManageElectionModal(electionId) {
@@ -621,6 +692,10 @@ export async function openManageElectionModal(electionId) {
   try {
     const snap = await getDoc(doc(db, "elections", electionId));
     const data = snap.exists() ? snap.data() : {};
+    modalCategories = Array.isArray(data.categories) && data.categories.length > 0
+      ? data.categories
+      : ["Boy CR", "Girl CR"];
+
     if (titleEl) titleEl.textContent = data.title || electionId;
     if (subEl) subEl.textContent = `${data.section || 'General'} • ID: ${electionId}`;
 
@@ -628,69 +703,132 @@ export async function openManageElectionModal(electionId) {
     const wlSnap = await getDocs(collection(db, "elections", electionId, "whitelist"));
     if (wlCountEl) wlCountEl.textContent = `${wlSnap.size} Whitelisted`;
 
-    // Load candidates for this election
+    renderModalCategories();
     loadModalElectionCandidates(electionId);
   } catch (e) {
     console.error("Open manage modal error:", e);
   }
 }
 
-async function loadModalElectionCandidates(electionId) {
-  const boyList = document.getElementById("manageModalBoyCandList");
-  const girlList = document.getElementById("manageModalGirlCandList");
-  if (!boyList || !girlList) return;
+function renderModalCategories() {
+  const listEl = document.getElementById("modalActiveCategoriesList");
+  const selectEl = document.getElementById("manageCandCategory");
+  if (!listEl) return;
 
-  boyList.innerHTML = `<span class="spinner"></span>`;
-  girlList.innerHTML = `<span class="spinner"></span>`;
+  listEl.innerHTML = "";
+  modalCategories.forEach((cat, idx) => {
+    const chip = document.createElement("div");
+    chip.className = `active-category-chip accent-${idx % 5}`;
+    chip.innerHTML = `
+      <span>${cat}</span>
+      ${modalCategories.length > 1 ? `<button type="button" class="remove-cat-btn" data-cat="${cat}" title="Remove Seat">&times;</button>` : ''}
+    `;
+    const removeBtn = chip.querySelector(".remove-cat-btn");
+    if (removeBtn) {
+      removeBtn.addEventListener("click", () => removeModalCategory(cat));
+    }
+    listEl.appendChild(chip);
+  });
+
+  if (selectEl) {
+    selectEl.innerHTML = "";
+    modalCategories.forEach(cat => {
+      const opt = document.createElement("option");
+      opt.value = cat;
+      opt.textContent = cat;
+      selectEl.appendChild(opt);
+    });
+  }
+}
+
+async function addModalCategory(name) {
+  const clean = (name || "").trim();
+  if (!clean) return;
+  if (modalCategories.some(c => c.toLowerCase() === clean.toLowerCase())) {
+    showAlert(`Seat '${clean}' is already configured.`, "info");
+    return;
+  }
+  modalCategories.push(clean);
+  renderModalCategories();
+
+  if (activeManageElectionId) {
+    await setDoc(doc(db, "elections", activeManageElectionId), {
+      categories: modalCategories,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+  }
+  showAlert(`Added seat '${clean}' to this election.`, "success");
+}
+
+async function removeModalCategory(name) {
+  if (modalCategories.length <= 1) {
+    showAlert("An election must have at least one seat/category.", "error");
+    return;
+  }
+  modalCategories = modalCategories.filter(c => c !== name);
+  renderModalCategories();
+
+  if (activeManageElectionId) {
+    await setDoc(doc(db, "elections", activeManageElectionId), {
+      categories: modalCategories,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    loadModalElectionCandidates(activeManageElectionId);
+  }
+}
+
+async function loadModalElectionCandidates(electionId) {
+  const container = document.getElementById("manageModalCandidatesContainer");
+  if (!container) return;
+
+  container.innerHTML = `<span class="spinner"></span>`;
 
   try {
     const candSnap = await getDocs(collection(db, "elections", electionId, "candidates"));
-    boyList.innerHTML = "";
-    girlList.innerHTML = "";
+    const allCands = [];
+    candSnap.forEach(d => allCands.push({ id: d.id, ...d.data() }));
 
-    const boys = [];
-    const girls = [];
+    container.innerHTML = "";
 
-    candSnap.forEach(d => {
-      const data = { id: d.id, ...d.data() };
-      if (data.category === "boy_cr") boys.push(data);
-      else if (data.category === "girl_cr") girls.push(data);
+    modalCategories.forEach((cat, idx) => {
+      const cands = allCands.filter(c => c.category === cat);
+      const wrapper = document.createElement("div");
+      wrapper.className = `candidate-table-wrapper border-accent-${idx % 5}`;
+      wrapper.style.padding = "1rem";
+      wrapper.style.background = "var(--bg-surface)";
+      wrapper.style.borderRadius = "var(--radius-md)";
+      wrapper.style.border = "1px solid var(--border-subtle)";
+
+      wrapper.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+          <h4 style="margin: 0; font-size: 0.95rem; color: var(--text-primary);">${cat} Candidates (${cands.length})</h4>
+          <span class="badge badge-accent-${idx % 5}" style="font-size: 0.7rem;">Seat #${idx + 1}</span>
+        </div>
+        <div class="admin-candidate-list" id="modalCandList_${idx}"></div>
+      `;
+
+      const listEl = wrapper.querySelector(`#modalCandList_${idx}`);
+      if (cands.length === 0) {
+        listEl.innerHTML = `<p class="text-muted" style="font-size:0.8rem; padding: 0.4rem 0;">No candidates registered for ${cat}.</p>`;
+      } else {
+        cands.forEach(b => {
+          const row = document.createElement("div");
+          row.className = "staged-cand-item";
+          row.innerHTML = `
+            <div><strong>${b.name}</strong> <span class="mono" style="color:var(--neon-cyan);">(${b.rollNo})</span></div>
+            <button type="button" class="btn btn-danger btn-sm" data-id="${b.id}">&times; Remove</button>
+          `;
+          row.querySelector("button").addEventListener("click", () => deleteCandidate(b.id, electionId));
+          listEl.appendChild(row);
+        });
+      }
+
+      container.appendChild(wrapper);
     });
-
-    if (boys.length === 0) {
-      boyList.innerHTML = `<p class="text-muted" style="font-size:0.8rem; padding: 0.5rem 0;">No Boy CR candidates.</p>`;
-    } else {
-      boys.forEach(b => {
-        const row = document.createElement("div");
-        row.className = "staged-cand-item";
-        row.innerHTML = `
-          <div><strong>${b.name}</strong> <span class="mono" style="color:var(--neon-cyan);">(${b.rollNo})</span></div>
-          <button type="button" class="btn btn-danger btn-sm" data-id="${b.id}">&times; Remove</button>
-        `;
-        row.querySelector("button").addEventListener("click", () => deleteCandidate(b.id, electionId));
-        boyList.appendChild(row);
-      });
-    }
-
-    if (girls.length === 0) {
-      girlList.innerHTML = `<p class="text-muted" style="font-size:0.8rem; padding: 0.5rem 0;">No Girl CR candidates.</p>`;
-    } else {
-      girls.forEach(g => {
-        const row = document.createElement("div");
-        row.className = "staged-cand-item";
-        row.innerHTML = `
-          <div><strong>${g.name}</strong> <span class="mono" style="color:var(--neon-magenta);">(${g.rollNo})</span></div>
-          <button type="button" class="btn btn-danger btn-sm" data-id="${g.id}">&times; Remove</button>
-        `;
-        row.querySelector("button").addEventListener("click", () => deleteCandidate(g.id, electionId));
-        girlList.appendChild(row);
-      });
-    }
 
   } catch (err) {
     console.error("Load modal candidates error:", err);
-    boyList.innerHTML = `<div class="error-msg">Error loading candidates</div>`;
-    girlList.innerHTML = `<div class="error-msg">Error loading candidates</div>`;
+    container.innerHTML = `<div class="error-msg">Error loading candidates: ${err.message}</div>`;
   }
 }
 
@@ -709,7 +847,7 @@ export async function deleteCandidate(candidateId, electionId = activeManageElec
 }
 
 // ============================================================================
-// 7. Voter Audit & Roll Lookup with Target Election Selector
+// 8. Voter Audit & Roll Lookup with Target Election Selector
 // ============================================================================
 
 let currentLookedUpRoll = null;
@@ -844,7 +982,7 @@ export async function emergencyResetVoter(rollNo = currentLookedUpRoll, election
 }
 
 // ============================================================================
-// 8. Real-Time Admin Elections Table & Dynamic Dropdown Populator
+// 9. Real-Time Admin Elections Table & Dynamic Dropdown Populator
 // ============================================================================
 
 export function initAdminElectionsTable() {
@@ -904,8 +1042,15 @@ export function initAdminElectionsTable() {
         lifecycleBtn = `<button class="btn btn-cyber-outline btn-sm admin-act-btn" data-act="archive" data-id="${data.id}">📦 Archive</button>`;
       }
 
+      const seatsSummary = Array.isArray(data.categories) && data.categories.length > 0
+        ? data.categories.join(", ")
+        : "Boy CR, Girl CR";
+
       row.innerHTML = `
-        <td><strong>${data.title || data.id}</strong><br><small class="mono text-muted">${data.id}</small></td>
+        <td>
+          <strong>${data.title || data.id}</strong><br>
+          <small class="text-muted">${seatsSummary}</small>
+        </td>
         <td>${data.section || 'Section A'}</td>
         <td>${modeBadge}</td>
         <td>${statusBadge}</td>
@@ -940,12 +1085,15 @@ export function initAdminElectionsTable() {
 }
 
 // ============================================================================
-// 9. Setup Event Listeners
+// 10. Setup Event Listeners
 // ============================================================================
 
 document.addEventListener("DOMContentLoaded", () => {
   // Check persisted admin session on load
   checkAdminSession();
+
+  // Initialize creator categories
+  renderCreatorCategories();
 
   // Admin Login Modal form submission
   const adminForm = document.getElementById("adminLoginForm");
@@ -973,6 +1121,60 @@ document.addEventListener("DOMContentLoaded", () => {
     closeAdminLoginModal.addEventListener("click", () => {
       const modal = document.getElementById("adminLoginModal");
       if (modal) modal.classList.add("hidden");
+    });
+  }
+
+  // Preset chips in Creator Form
+  const creatorPresetsContainer = document.getElementById("creatorPresetChips");
+  if (creatorPresetsContainer) {
+    creatorPresetsContainer.querySelectorAll(".category-preset-chip").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const cat = btn.dataset.cat;
+        addCreatorCategory(cat);
+      });
+    });
+  }
+
+  // Custom Category Input in Creator Form
+  const addCategoryBtn = document.getElementById("addCategoryBtn");
+  const newCategoryInput = document.getElementById("newCategoryInput");
+  if (addCategoryBtn && newCategoryInput) {
+    addCategoryBtn.addEventListener("click", () => {
+      addCreatorCategory(newCategoryInput.value);
+      newCategoryInput.value = "";
+    });
+    newCategoryInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        addCategoryBtn.click();
+      }
+    });
+  }
+
+  // Preset chips in Manage Modal
+  const modalPresetsContainer = document.getElementById("modalPresetChips");
+  if (modalPresetsContainer) {
+    modalPresetsContainer.querySelectorAll(".category-preset-chip").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const cat = btn.dataset.cat;
+        addModalCategory(cat);
+      });
+    });
+  }
+
+  // Custom Category Input in Manage Modal
+  const modalAddCategoryBtn = document.getElementById("modalAddCategoryBtn");
+  const modalNewCategoryInput = document.getElementById("modalNewCategoryInput");
+  if (modalAddCategoryBtn && modalNewCategoryInput) {
+    modalAddCategoryBtn.addEventListener("click", () => {
+      addModalCategory(modalNewCategoryInput.value);
+      modalNewCategoryInput.value = "";
+    });
+    modalNewCategoryInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        modalAddCategoryBtn.click();
+      }
     });
   }
 
@@ -1071,6 +1273,7 @@ document.addEventListener("DOMContentLoaded", () => {
         await createUnifiedElection({
           title,
           section: scope,
+          categories: creatorCategories,
           mode,
           durationMinutes: duration,
           whitelistText: wlText,
@@ -1080,7 +1283,8 @@ document.addEventListener("DOMContentLoaded", () => {
         // Reset form and staged candidates
         unifiedForm.reset();
         stagedCandidates = [];
-        renderStagedCandidates();
+        creatorCategories = ["Boy CR", "Girl CR"];
+        renderCreatorCategories();
         if (wlCountBadge) {
           wlCountBadge.textContent = "0 Roll Numbers Staged";
           wlCountBadge.className = "badge badge-secondary ml-auto";
@@ -1132,7 +1336,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (modalAddCandBtn) {
     modalAddCandBtn.addEventListener("click", async () => {
       if (!activeManageElectionId) return;
-      const cat = document.getElementById("manageCandCategory")?.value;
+      const cat = document.getElementById("manageCandCategory")?.value || modalCategories[0] || "Boy CR";
       const name = document.getElementById("manageCandName")?.value.trim();
       const roll = document.getElementById("manageCandRoll")?.value.trim();
       const manifesto = document.getElementById("manageCandManifesto")?.value.trim();
@@ -1209,7 +1413,7 @@ document.addEventListener("DOMContentLoaded", () => {
     previewSampleCertBtn.addEventListener("click", () => {
       generateWinnerCertificate({
         winnerName: "Aarav Sharma",
-        position: "BOY CLASS REPRESENTATIVE (BOY CR)",
+        position: "CLASS REPRESENTATIVE",
         section: "Section A",
         electionTitle: "CR Election 2026",
         auditId: "MVH-2026-SAMPLE"

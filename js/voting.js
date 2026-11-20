@@ -1,4 +1,4 @@
-// Mirai Vote Hub - Dual-Seat Voting & Atomic Transaction Engine
+// Mirai Vote Hub - Dynamic Multi-Seat Voting & Atomic Transaction Engine
 // Mirai School of Technology
 
 import { db } from "./firebase-config.js";
@@ -15,12 +15,10 @@ import {
 
 // Ballot State
 let currentElectionId = "section-a";
-let selectedBoyCandidate = null;
-let selectedGirlCandidate = null;
-let candidatesCache = {
-  boy_cr: [],
-  girl_cr: []
-};
+let currentElectionCategories = ["Boy CR", "Girl CR"];
+let selectionsMap = {}; // { [category]: candidateId }
+let selectedCandidatesData = {}; // { [category]: candidateObject }
+let candidatesCache = {}; // { [category]: [candidate, ...] }
 let ballotTimerInterval = null;
 
 export function updateBallotCountdown(closesAt) {
@@ -114,141 +112,232 @@ export function updateGlobalElectionStatusPill(activeCount) {
   }
 }
 
-// Elements
-const boyCandidatesGrid = document.getElementById("boyCandidatesGrid");
-const girlCandidatesGrid = document.getElementById("girlCandidatesGrid");
-const summaryBoyChoice = document.getElementById("summaryBoyChoice");
-const summaryGirlChoice = document.getElementById("summaryGirlChoice");
+// UI Elements
 const reviewVoteBtn = document.getElementById("reviewVoteBtn");
-
-// Confirm Modal Elements
 const confirmVoteModal = document.getElementById("confirmVoteModal");
-const modalConfirmBoy = document.getElementById("modalConfirmBoy");
-const modalConfirmGirl = document.getElementById("modalConfirmGirl");
 const closeConfirmModalBtn = document.getElementById("closeConfirmModalBtn");
 const cancelVoteBtn = document.getElementById("cancelVoteBtn");
 const finalSubmitVoteBtn = document.getElementById("finalSubmitVoteBtn");
 const submitSpinner = document.getElementById("submitSpinner");
 
-// Fetch and render candidates
+// ============================================================================
+// Dynamic Multi-Seat Ballot Booth Rendering
+// ============================================================================
+
 export async function loadCandidates(electionId = currentElectionId) {
+  await renderDynamicBallot(electionId);
+}
+
+export async function renderDynamicBallot(electionId = currentElectionId) {
+  const container = document.getElementById("ballotCategoriesContainer");
+  if (!container) return;
+
+  container.innerHTML = `<div class="loading-placeholder"><span class="spinner"></span> Loading certified electoral categories...</div>`;
+
   try {
-    candidatesCache.boy_cr = [];
-    candidatesCache.girl_cr = [];
+    currentElectionId = electionId;
 
-    let snapshot = null;
-    if (electionId) {
-      const electionCandCol = collection(db, "elections", electionId, "candidates");
-      snapshot = await getDocs(electionCandCol);
+    // 1. Fetch Election Configuration
+    let categories = ["Boy CR", "Girl CR"];
+    const electionSnap = await getDoc(doc(db, "elections", electionId));
+    if (electionSnap.exists()) {
+      const edata = electionSnap.data();
+      if (Array.isArray(edata.categories) && edata.categories.length > 0) {
+        categories = edata.categories;
+      }
     }
-    if (!snapshot || snapshot.empty) {
-      const candidatesCol = collection(db, "candidates");
-      snapshot = await getDocs(candidatesCol);
+    currentElectionCategories = categories;
+
+    // Reset student selections
+    selectionsMap = {};
+    selectedCandidatesData = {};
+    candidatesCache = {};
+    categories.forEach(cat => { candidatesCache[cat] = []; });
+
+    // 2. Fetch candidates (Subcollection first, fallback to root)
+    let candidatesSnap = await getDocs(collection(db, "elections", electionId, "candidates"));
+    if (candidatesSnap.empty) {
+      candidatesSnap = await getDocs(collection(db, "candidates"));
     }
 
-    snapshot.forEach(docSnap => {
+    candidatesSnap.forEach(docSnap => {
       const data = { id: docSnap.id, ...docSnap.data() };
-      if (data.category === "boy_cr") {
-        candidatesCache.boy_cr.push(data);
-      } else if (data.category === "girl_cr") {
-        candidatesCache.girl_cr.push(data);
+      const rawCat = data.category || "";
+
+      // Normalize match with defined categories
+      const matchedCat = categories.find(c => 
+        c.toLowerCase() === rawCat.toLowerCase() ||
+        (c === "Boy CR" && rawCat === "boy_cr") ||
+        (c === "Girl CR" && rawCat === "girl_cr")
+      );
+
+      if (matchedCat) {
+        if (!candidatesCache[matchedCat]) candidatesCache[matchedCat] = [];
+        candidatesCache[matchedCat].push(data);
       }
     });
 
-    renderSeatCandidates("boy_cr", candidatesCache.boy_cr, boyCandidatesGrid);
-    renderSeatCandidates("girl_cr", candidatesCache.girl_cr, girlCandidatesGrid);
+    // 3. Render Dynamic Columns for Each Category
+    container.innerHTML = "";
+    categories.forEach((cat, idx) => {
+      const cands = candidatesCache[cat] || [];
+      const col = document.createElement("div");
+      col.className = `nominee-column border-accent-${idx % 5}`;
+      col.id = `seatContainer_${idx}`;
+
+      col.innerHTML = `
+        <div class="column-header">
+          <div class="column-title-group">
+            <span class="category-indicator badge-accent-${idx % 5}">Seat #${idx + 1}</span>
+            <h3>${cat} Nominees</h3>
+          </div>
+          <span class="seat-badge-neon cyan">Select Exactly 1</span>
+        </div>
+        <p class="column-subtitle">Review candidate manifestos and choose exactly one certified nominee for ${cat}.</p>
+        <div class="candidates-grid" id="candidatesGrid_${idx}"></div>
+      `;
+
+      const grid = col.querySelector(`#candidatesGrid_${idx}`);
+      if (cands.length === 0) {
+        grid.innerHTML = `
+          <div class="empty-candidate-card">
+            <p>No certified candidates registered yet for ${cat}.</p>
+            <small>Admins can add nominees in the Election Control Terminal.</small>
+          </div>
+        `;
+      } else {
+        cands.forEach(cand => {
+          const card = createCandidateCard(cand, cat, idx);
+          grid.appendChild(card);
+        });
+      }
+
+      container.appendChild(col);
+    });
+
+    // Initialize Bottom Status Tracker
+    updateBallotTrackerUI();
 
   } catch (error) {
-    console.error("Failed to load candidates:", error);
-    if (boyCandidatesGrid) boyCandidatesGrid.innerHTML = `<div class="error-msg">Error loading candidates: ${error.message}</div>`;
-    if (girlCandidatesGrid) girlCandidatesGrid.innerHTML = `<div class="error-msg">Error loading candidates: ${error.message}</div>`;
+    console.error("Failed to render dynamic ballot:", error);
+    container.innerHTML = `<div class="error-msg">Error loading electoral seats: ${error.message}</div>`;
   }
 }
 
-function renderSeatCandidates(category, candidates, container) {
-  if (!container) return;
+function createCandidateCard(candidate, category, categoryIdx) {
+  const card = document.createElement("div");
+  card.className = "candidate-card";
+  card.dataset.id = candidate.id;
+  card.dataset.category = category;
 
-  if (candidates.length === 0) {
-    container.innerHTML = `
-      <div class="empty-candidate-card">
-        <p>No certified candidates registered yet for this seat.</p>
-        <small>Admins can register candidates in the Election Control Terminal.</small>
+  const initials = candidate.name
+    .split(" ")
+    .map(n => n[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
+  const avatarContent = candidate.photoUrl
+    ? `<img src="${candidate.photoUrl}" alt="${candidate.name}" class="avatar-img" onerror="this.onerror=null;this.parentElement.innerHTML='${initials}';" />`
+    : initials;
+
+  card.innerHTML = `
+    <div class="candidate-header">
+      <div class="candidate-avatar boy_cr-avatar">${avatarContent}</div>
+      <div class="candidate-meta">
+        <h4 class="candidate-name">${candidate.name}</h4>
+        <span class="candidate-roll mono">${candidate.rollNo || candidate.id}</span>
       </div>
-    `;
-    return;
-  }
-
-  container.innerHTML = "";
-  candidates.forEach(cand => {
-    const card = document.createElement("div");
-    card.className = `candidate-card ${category}-card`;
-    card.dataset.id = cand.id;
-    card.dataset.category = category;
-
-    const avatarInitial = cand.name ? cand.name.charAt(0).toUpperCase() : "C";
-    const photoHtml = cand.photoUrl 
-      ? `<img src="${cand.photoUrl}" alt="${cand.name}" class="candidate-avatar">`
-      : `<div class="candidate-avatar ${category}-avatar">${avatarInitial}</div>`;
-
-    const catBadgeText = category === "boy_cr" ? "Category A &bull; Boy CR Nominee" : "Category B &bull; Girl CR Nominee";
-    const catBadgeClass = category === "boy_cr" ? "badge-boy" : "badge-girl";
-
-    card.innerHTML = `
-      <div class="card-top-row">
-        <span class="category-badge ${catBadgeClass}">${catBadgeText}</span>
-        <span class="selection-pill">Click to Choose</span>
+      <div class="selection-indicator">
+        <span class="radio-circle"></span>
       </div>
-      <div class="candidate-profile-row">
-        ${photoHtml}
-        <div class="candidate-meta">
-          <div class="candidate-name">${cand.name}</div>
-          <div class="candidate-roll">${cand.rollNo || 'Roll: Certified'}</div>
-        </div>
-      </div>
-      <div class="candidate-manifesto-box">
-        <p class="candidate-manifesto">${cand.manifesto || 'Committed to representing student cohort interests.'}</p>
-      </div>
-    `;
+    </div>
+    <div class="candidate-body">
+      <p class="candidate-manifesto">"${candidate.manifesto || 'Committed to representing student interests and cohort welfare.'}"</p>
+    </div>
+  `;
 
-    card.addEventListener("click", () => handleCandidateSelection(category, cand, card));
-    container.appendChild(card);
+  card.addEventListener("click", () => {
+    selectCandidate(category, candidate, card, categoryIdx);
   });
+
+  return card;
 }
 
-function handleCandidateSelection(category, candidate, cardElement) {
-  const container = category === "boy_cr" ? boyCandidatesGrid : girlCandidatesGrid;
-  
-  // Deselect previous in same seat
-  container.querySelectorAll(".candidate-card").forEach(el => el.classList.remove("selected"));
+function selectCandidate(category, candidate, cardElement, categoryIdx) {
+  selectionsMap[category] = candidate.id;
+  selectedCandidatesData[category] = candidate;
 
-  // Select clicked
+  // Unselect all other cards in this specific category grid
+  const grid = document.getElementById(`candidatesGrid_${categoryIdx}`);
+  if (grid) {
+    grid.querySelectorAll(".candidate-card").forEach(c => c.classList.remove("selected"));
+  }
+
+  // Mark clicked card selected
   cardElement.classList.add("selected");
 
-  if (category === "boy_cr") {
-    selectedBoyCandidate = candidate;
-    if (summaryBoyChoice) summaryBoyChoice.textContent = candidate.name;
-  } else {
-    selectedGirlCandidate = candidate;
-    if (summaryGirlChoice) summaryGirlChoice.textContent = candidate.name;
-  }
+  // Update Status Tracker & Submit Button state
+  updateBallotTrackerUI();
+}
 
-  // Validate if both seats selected
-  if (selectedBoyCandidate && selectedGirlCandidate) {
-    if (reviewVoteBtn) reviewVoteBtn.disabled = false;
-  } else {
-    if (reviewVoteBtn) reviewVoteBtn.disabled = true;
+function updateBallotTrackerUI() {
+  const tracker = document.getElementById("ballotStatusTracker");
+  if (!tracker) return;
+
+  tracker.innerHTML = "";
+
+  currentElectionCategories.forEach((cat, idx) => {
+    const isSelected = Boolean(selectionsMap[cat]);
+    const cand = selectedCandidatesData[cat];
+
+    const item = document.createElement("div");
+    item.className = "status-track-item";
+    item.innerHTML = `
+      <span class="track-label">${cat}:</span>
+      <span class="track-value ${isSelected ? 'highlight-cyan' : ''}" style="${isSelected ? '' : 'color:var(--text-muted);'}">
+        ${isSelected ? cand.name : 'None selected'}
+      </span>
+    `;
+    tracker.appendChild(item);
+
+    if (idx < currentElectionCategories.length - 1) {
+      const divider = document.createElement("div");
+      divider.className = "status-track-divider";
+      tracker.appendChild(divider);
+    }
+  });
+
+  // Enable button only if every defined category has a selected candidate
+  const isComplete = currentElectionCategories.every(cat => Boolean(selectionsMap[cat]));
+  if (reviewVoteBtn) {
+    reviewVoteBtn.disabled = !isComplete;
   }
 }
 
 // Open Review Modal
 function openReviewModal() {
-  if (!selectedBoyCandidate || !selectedGirlCandidate) {
-    showAlert("Please select both 1 Boy CR and 1 Girl CR before submitting.", "error");
+  const isComplete = currentElectionCategories.every(cat => Boolean(selectionsMap[cat]));
+  if (!isComplete) {
+    showAlert("Please select one candidate for every electoral seat before submitting.", "error");
     return;
   }
 
-  if (modalConfirmBoy) modalConfirmBoy.textContent = `${selectedBoyCandidate.name} (${selectedBoyCandidate.rollNo || 'Certified'})`;
-  if (modalConfirmGirl) modalConfirmGirl.textContent = `${selectedGirlCandidate.name} (${selectedGirlCandidate.rollNo || 'Certified'})`;
+  const reviewContainer = document.getElementById("modalSelectionsReview");
+  if (reviewContainer) {
+    reviewContainer.innerHTML = "";
+    currentElectionCategories.forEach((cat, idx) => {
+      const cand = selectedCandidatesData[cat];
+      const block = document.createElement("div");
+      block.className = `review-block border-accent-${idx % 5}`;
+      block.innerHTML = `
+        <span class="review-label">${cat}:</span>
+        <strong class="review-name highlight-cyan">${cand.name} <span class="mono" style="color:var(--text-muted);">(${cand.rollNo || cand.id})</span></strong>
+      `;
+      reviewContainer.appendChild(block);
+    });
+  }
+
   if (confirmVoteModal) confirmVoteModal.classList.remove("hidden");
 }
 
@@ -264,17 +353,27 @@ export function generateReceiptToken(rollNo) {
 }
 
 // ============================================================================
-// Atomic Ballot Transaction Engine (Zero Duplicate Guarantee & Decoupled Secrecy)
+// Atomic Ballot Transaction Engine (Multi-Seat Dynamic Secrecy Protocol)
 // ============================================================================
-export async function submitBallot(electionId, studentId, boyCandidateId, girlCandidateId) {
+export async function submitBallot(electionId, studentId, selectionsMapArg, extraArg) {
   const targetElectionId = electionId || currentElectionId || "section-a";
   const normalizedRoll = (studentId || "").trim().toUpperCase();
 
   if (!normalizedRoll) {
     throw new Error("Student Roll Number is required to cast a ballot.");
   }
-  if (!boyCandidateId || !girlCandidateId) {
-    throw new Error("Dual-seat election requires selecting 1 Boy CR and 1 Girl CR.");
+
+  // Support both object map { [cat]: candId } and legacy args (electionId, studentId, boyId, girlId)
+  let ballotSelections = {};
+  if (typeof selectionsMapArg === "object" && selectionsMapArg !== null) {
+    ballotSelections = selectionsMapArg;
+  } else if (typeof selectionsMapArg === "string" && typeof extraArg === "string") {
+    ballotSelections = {
+      "Boy CR": selectionsMapArg,
+      "Girl CR": extraArg
+    };
+  } else {
+    ballotSelections = selectionsMap;
   }
 
   const receiptToken = generateReceiptToken(normalizedRoll);
@@ -299,12 +398,6 @@ export async function submitBallot(electionId, studentId, boyCandidateId, girlCa
     const rootVoterRef = doc(db, "whitelist", normalizedRoll);
     const rootVoterSnap = await transaction.get(rootVoterRef);
 
-    // 1c. Candidate records reads
-    const boyRef = doc(db, "candidates", boyCandidateId);
-    const girlRef = doc(db, "candidates", girlCandidateId);
-    const boySnap = await transaction.get(boyRef);
-    const girlSnap = await transaction.get(girlRef);
-
     // ------------------------------------------------------------------------
     // STEP 2: VERIFICATION & AUDIT GATES
     // ------------------------------------------------------------------------
@@ -313,17 +406,24 @@ export async function submitBallot(electionId, studentId, boyCandidateId, girlCa
     let status = "active";
     let votingMode = "manual";
     let closesAt = null;
+    let categories = ["Boy CR", "Girl CR"];
 
     if (electionSnap.exists()) {
       const edata = electionSnap.data();
       status = edata.status;
       votingMode = edata.votingMode || "manual";
       closesAt = edata.closesAt || null;
+      if (Array.isArray(edata.categories) && edata.categories.length > 0) {
+        categories = edata.categories;
+      }
     } else if (metaSnap.exists()) {
       const mdata = metaSnap.data();
       status = mdata.status;
       votingMode = mdata.votingMode || "manual";
       closesAt = mdata.closesAt || null;
+      if (Array.isArray(mdata.categories) && mdata.categories.length > 0) {
+        categories = mdata.categories;
+      }
     }
 
     if (status !== "active") {
@@ -334,7 +434,14 @@ export async function submitBallot(electionId, studentId, boyCandidateId, girlCa
       throw new Error("Election voting period has expired. The ballot box is sealed.");
     }
 
-    // Gate B: Voter whitelist verification & Zero Duplicate Guarantee
+    // Gate B: Multi-seat ballot completeness check
+    for (const cat of categories) {
+      if (!ballotSelections[cat]) {
+        throw new Error(`Incomplete ballot: missing selection for seat '${cat}'.`);
+      }
+    }
+
+    // Gate C: Voter whitelist verification & Zero Duplicate Guarantee
     if (!electionVoterSnap.exists() && !rootVoterSnap.exists()) {
       throw new Error(`Roll Number '${normalizedRoll}' is not certified on the election whitelist.`);
     }
@@ -346,22 +453,13 @@ export async function submitBallot(electionId, studentId, boyCandidateId, girlCa
       throw new Error("Duplicate Vote Rejected: A ballot has already been cast and sealed for this Roll Number.");
     }
 
-    // Gate C: Candidate verification & category integrity
-    if (!boySnap.exists()) {
-      throw new Error(`Selected Boy CR candidate (${boyCandidateId}) not found in candidate registry.`);
-    }
-    if (!girlSnap.exists()) {
-      throw new Error(`Selected Girl CR candidate (${girlCandidateId}) not found in candidate registry.`);
-    }
-
-    const boyData = boySnap.data();
-    const girlData = girlSnap.data();
-
-    if (boyData.category !== "boy_cr") {
-      throw new Error(`Candidate '${boyData.name || boyCandidateId}' does not belong to category 'boy_cr'.`);
-    }
-    if (girlData.category !== "girl_cr") {
-      throw new Error(`Candidate '${girlData.name || girlCandidateId}' does not belong to category 'girl_cr'.`);
+    // Gate D: Read candidate records
+    const candidateIds = Object.values(ballotSelections);
+    for (const candId of candidateIds) {
+      const elCandRef = doc(db, "elections", targetElectionId, "candidates", candId);
+      const rootCandRef = doc(db, "candidates", candId);
+      await transaction.get(elCandRef);
+      await transaction.get(rootCandRef);
     }
 
     // ------------------------------------------------------------------------
@@ -397,25 +495,20 @@ export async function submitBallot(electionId, studentId, boyCandidateId, girlCa
       }, { merge: true });
     }
 
-    // 3b. Increment candidate vote counters atomically
-    transaction.update(boyRef, {
-      voteCount: increment(1)
-    });
-    transaction.update(girlRef, {
-      voteCount: increment(1)
-    });
+    // 3b. Increment candidate vote counters atomically across all chosen seats
+    for (const candId of candidateIds) {
+      const elCandRef = doc(db, "elections", targetElectionId, "candidates", candId);
+      transaction.set(elCandRef, { voteCount: increment(1) }, { merge: true });
 
-    const electionBoyRef = doc(db, "elections", targetElectionId, "candidates", boyCandidateId);
-    const electionGirlRef = doc(db, "elections", targetElectionId, "candidates", girlCandidateId);
-    transaction.set(electionBoyRef, { voteCount: increment(1) }, { merge: true });
-    transaction.set(electionGirlRef, { voteCount: increment(1) }, { merge: true });
+      const rootCandRef = doc(db, "candidates", candId);
+      transaction.set(rootCandRef, { voteCount: increment(1) }, { merge: true });
+    }
 
-    // 3c. Decoupled Anonymous Ballot Record (Ballot Secrecy: completely decoupled from student identity)
+    // 3c. Decoupled Anonymous Ballot Record (Ballot Secrecy Protocol)
     const anonymousVoteRef = doc(collection(db, "votes"));
     transaction.set(anonymousVoteRef, {
       electionId: targetElectionId,
-      boyCandidateId: boyCandidateId,
-      girlCandidateId: girlCandidateId,
+      selections: ballotSelections,
       castAt: voteTimestamp,
       castAtMillis: nowTs,
       receiptToken: receiptToken
@@ -423,8 +516,7 @@ export async function submitBallot(electionId, studentId, boyCandidateId, girlCa
 
     const electionVoteRef = doc(collection(db, "elections", targetElectionId, "votes"));
     transaction.set(electionVoteRef, {
-      boyCandidateId: boyCandidateId,
-      girlCandidateId: girlCandidateId,
+      selections: ballotSelections,
       castAt: voteTimestamp,
       castAtMillis: nowTs,
       receiptToken: receiptToken
@@ -441,21 +533,20 @@ export async function executeAtomicVote() {
     return;
   }
 
-  if (!selectedBoyCandidate || !selectedGirlCandidate) {
-    showAlert("Incomplete ballot. Both 1 Boy CR and 1 Girl CR must be selected.", "error");
+  const isComplete = currentElectionCategories.every(cat => Boolean(selectionsMap[cat]));
+  if (!isComplete) {
+    showAlert("Incomplete ballot. You must choose one nominee for every seat.", "error");
     return;
   }
 
   const rollNo = state.studentData.rollNo;
-  const boyCandidateId = selectedBoyCandidate.id;
-  const girlCandidateId = selectedGirlCandidate.id;
 
   try {
     if (submitSpinner) submitSpinner.classList.remove("hidden");
     if (finalSubmitVoteBtn) finalSubmitVoteBtn.disabled = true;
 
-    // Execute atomic transaction
-    const receiptToken = await submitBallot(currentElectionId, rollNo, boyCandidateId, girlCandidateId);
+    // Execute atomic multi-seat transaction
+    const receiptToken = await submitBallot(currentElectionId, rollNo, selectionsMap);
 
     // Update local state and persistent session
     if (state.studentData) {
@@ -516,7 +607,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Load candidates when ballot unlocks
   window.addEventListener("ballotUnlocked", () => {
-    loadCandidates();
+    loadCandidates(currentElectionId);
   });
 
   // Dynamic election selected from card

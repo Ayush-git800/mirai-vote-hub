@@ -203,55 +203,19 @@
             </div>
           </div>
 
-          <!-- Dual-Seat Nominee Columns (Side by Side on Desktop, Stacked on Mobile) -->
+          <!-- Multi-Seat Nominee Columns (Dynamic Responsive Grid) -->
           <form id="ballotForm" class="ballot-container">
-            <div class="dual-seat-columns">
-              <!-- Column 1: Category A - Boy CR Nominees -->
-              <div class="nominee-column boy-column" id="boySeatContainer">
-                <div class="column-header">
-                  <div class="column-title-group">
-                    <span class="category-indicator boy-indicator">Category A</span>
-                    <h3>Boy CR Nominees</h3>
-                  </div>
-                  <span class="seat-badge-neon cyan">Select Exactly 1</span>
-                </div>
-                <p class="column-subtitle">Review candidate manifestos and choose exactly one nominee for Boy Class Representative.</p>
-
-                <div class="candidates-grid" id="boyCandidatesGrid">
-                  <!-- Dynamically populated candidate cards -->
-                  <div class="loading-placeholder">Loading certified Boy CR candidates...</div>
-                </div>
-              </div>
-
-              <!-- Column 2: Category B - Girl CR Nominees -->
-              <div class="nominee-column girl-column" id="girlSeatContainer">
-                <div class="column-header">
-                  <div class="column-title-group">
-                    <span class="category-indicator girl-indicator">Category B</span>
-                    <h3>Girl CR Nominees</h3>
-                  </div>
-                  <span class="seat-badge-neon magenta">Select Exactly 1</span>
-                </div>
-                <p class="column-subtitle">Review candidate manifestos and choose exactly one nominee for Girl Class Representative.</p>
-
-                <div class="candidates-grid" id="girlCandidatesGrid">
-                  <!-- Dynamically populated candidate cards -->
-                  <div class="loading-placeholder">Loading certified Girl CR candidates...</div>
-                </div>
-              </div>
+            <div class="dual-seat-columns" id="ballotCategoriesContainer">
+              <!-- Dynamically populated candidate categories -->
+              <div class="loading-placeholder">Loading certified electoral seats...</div>
             </div>
 
             <!-- Anchored Bottom Submission Bar -->
             <div class="anchored-submit-bar" id="ballotSubmitBar">
-              <div class="submission-status-tracker">
+              <div class="submission-status-tracker" id="ballotStatusTracker">
                 <div class="status-track-item">
-                  <span class="track-label">Selected Boy CR (Category A):</span>
-                  <span class="track-value boy-glow" id="summaryBoyChoice">None selected</span>
-                </div>
-                <div class="status-track-divider"></div>
-                <div class="status-track-item">
-                  <span class="track-label">Selected Girl CR (Category B):</span>
-                  <span class="track-value girl-glow" id="summaryGirlChoice">None selected</span>
+                  <span class="track-label">Ballot Status:</span>
+                  <span class="track-value" style="color:var(--text-muted);">Please make your selections</span>
                 </div>
               </div>
               <button type="button" id="reviewVoteBtn" class="btn btn-cyber-primary btn-lg" disabled>
@@ -354,62 +318,9 @@
               </div>
             </div>
 
-            <!-- Boy CR Certified Results -->
-            <div class="result-category-block boy-border">
-              <div class="cat-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem;">
-                <div>
-                  <h3>🏆 Certified Result: Boy Class Representative (Category A)</h3>
-                  <span class="winner-pill" id="boyWinnerPill">Awaiting Certification</span>
-                </div>
-                <button id="downloadBoyCertBtn" class="btn btn-certificate hidden">
-                  <span>📜 Download Winner Certificate (PDF)</span>
-                </button>
-              </div>
-              <div class="results-table-container">
-                <table class="results-table" id="boyResultsTable">
-                  <thead>
-                    <tr>
-                      <th>Candidate</th>
-                      <th>Roll Number</th>
-                      <th>Votes</th>
-                      <th>Percentage Share</th>
-                      <th>Standing</th>
-                    </tr>
-                  </thead>
-                  <tbody id="boyResultsBody">
-                    <!-- Populated dynamically -->
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <!-- Girl CR Certified Results -->
-            <div class="result-category-block girl-border">
-              <div class="cat-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem;">
-                <div>
-                  <h3>🏆 Certified Result: Girl Class Representative (Category B)</h3>
-                  <span class="winner-pill" id="girlWinnerPill">Awaiting Certification</span>
-                </div>
-                <button id="downloadGirlCertBtn" class="btn btn-certificate hidden">
-                  <span>📜 Download Winner Certificate (PDF)</span>
-                </button>
-              </div>
-              <div class="results-table-container">
-                <table class="results-table" id="girlResultsTable">
-                  <thead>
-                    <tr>
-                      <th>Candidate</th>
-                      <th>Roll Number</th>
-                      <th>Votes</th>
-                      <th>Percentage Share</th>
-                      <th>Standing</th>
-                    </tr>
-                  </thead>
-                  <tbody id="girlResultsBody">
-                    <!-- Populated dynamically -->
-                  </tbody>
-                </table>
-              </div>
+            <!-- Dynamic Category Results Container -->
+            <div id="dynamicResultsCategories" class="results-categories-wrapper">
+              <!-- Dynamically populated category result cards with winner badges & PDF cert buttons -->
             </div>
           </div>
         </div>
@@ -480,6 +391,39 @@
                       <input type="number" id="unifiedDurationMinutes" min="1" max="1440" value="60" placeholder="e.g. 60">
                     </div>
                   </div>
+
+                  <!-- Electoral Categories / Seats Setup -->
+                  <div class="form-group mt-3" style="border-top: 1px solid var(--border-subtle); padding-top: 1rem;">
+                    <label>Electoral Seats / Categories (Positions Contested):</label>
+                    <p class="admin-help-text">Click quick presets or enter a custom seat title. Create any number of seats (1, 2, 3+).</p>
+
+                    <!-- Preset quick-add chips -->
+                    <div class="category-preset-row mt-2">
+                      <span class="text-muted" style="font-size: 0.78rem;">Quick Presets:</span>
+                      <div class="category-presets-list" id="creatorPresetChips">
+                        <button type="button" class="category-preset-chip" data-cat="Boy CR">+ Boy CR</button>
+                        <button type="button" class="category-preset-chip" data-cat="Girl CR">+ Girl CR</button>
+                        <button type="button" class="category-preset-chip" data-cat="Technical Secretary">+ Technical Secretary</button>
+                        <button type="button" class="category-preset-chip" data-cat="Sports Captain">+ Sports Captain</button>
+                        <button type="button" class="category-preset-chip" data-cat="Cultural Secretary">+ Cultural Secretary</button>
+                        <button type="button" class="category-preset-chip" data-cat="Club President">+ Club President</button>
+                      </div>
+                    </div>
+
+                    <!-- Custom category input -->
+                    <div class="input-with-button mt-2">
+                      <input type="text" id="newCategoryInput" placeholder="e.g. Vice President, Event Coordinator">
+                      <button type="button" id="addCategoryBtn" class="btn btn-secondary btn-sm">+ Add Seat</button>
+                    </div>
+
+                    <!-- Active categories chips list -->
+                    <div class="active-categories-box mt-2">
+                      <span class="text-muted" style="font-size: 0.78rem;">Active Electoral Seats for this Election:</span>
+                      <div id="activeCategoriesList" class="active-categories-list mt-1">
+                        <!-- Populated dynamically -->
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <!-- Step 2: Election-Specific Voter Whitelist -->
@@ -518,15 +462,14 @@
                     <span class="step-title">Election-Specific Candidate Registry</span>
                     <span class="badge badge-secondary ml-auto" id="stagedCandCountBadge">0 Nominees Staged</span>
                   </div>
-                  <p class="admin-help-text">Build and stage dual-seat nominees for this election. Nominees appear in the preview below and will be saved atomically with this election.</p>
+                  <p class="admin-help-text">Build and stage nominees for each configured seat. Nominees appear in the preview below and will be saved atomically with this election.</p>
 
                   <div class="candidate-builder-box">
                     <div class="form-row">
                       <div class="form-group flex-1">
-                        <label for="stagedCandCategory">Category</label>
+                        <label for="stagedCandCategory">Contested Seat / Category</label>
                         <select id="stagedCandCategory">
-                          <option value="boy_cr">Boy CR (Category A)</option>
-                          <option value="girl_cr">Girl CR (Category B)</option>
+                          <!-- Populated dynamically from active categories -->
                         </select>
                       </div>
                       <div class="form-group flex-2">
@@ -556,20 +499,8 @@
                   </div>
 
                   <!-- Staged Nominees Preview Grid -->
-                  <div class="staged-candidates-grid mt-3">
-                    <div class="candidate-table-wrapper boy-wrapper">
-                      <h4>Category A: Staged Boy CR Nominees</h4>
-                      <div id="stagedBoyCandidatesList" class="admin-candidate-list">
-                        <p class="text-muted" style="font-size:0.8rem; padding: 0.5rem 0;">No Boy CR nominees staged yet.</p>
-                      </div>
-                    </div>
-
-                    <div class="candidate-table-wrapper girl-wrapper">
-                      <h4>Category B: Staged Girl CR Nominees</h4>
-                      <div id="stagedGirlCandidatesList" class="admin-candidate-list">
-                        <p class="text-muted" style="font-size:0.8rem; padding: 0.5rem 0;">No Girl CR nominees staged yet.</p>
-                      </div>
-                    </div>
+                  <div class="staged-candidates-grid mt-3" id="stagedCandidatesContainer">
+                    <!-- Populated dynamically grouped by category -->
                   </div>
                 </div>
 
@@ -659,14 +590,11 @@
           <p class="modal-alert-box">
             ⚠️ <strong>Irreversible Action:</strong> Once confirmed, your ballot is submitted atomically. You cannot vote again or modify your selections.
           </p>
-          <div class="modal-selections-review">
-            <div class="review-block boy-review">
-              <span class="review-label">Boy Class Representative (Category A):</span>
-              <strong id="modalConfirmBoy" class="review-name highlight-cyan">--</strong>
-            </div>
-            <div class="review-block girl-review">
-              <span class="review-label">Girl Class Representative (Category B):</span>
-              <strong id="modalConfirmGirl" class="review-name highlight-magenta">--</strong>
+          <div class="modal-selections-review" id="modalSelectionsReview">
+            <!-- Dynamically populated review blocks -->
+            <div class="review-block">
+              <span class="review-label">Candidate Selections:</span>
+              <strong class="review-name highlight-cyan">Reviewing...</strong>
             </div>
           </div>
         </div>
@@ -730,18 +658,43 @@
             </div>
           </div>
 
-          <!-- Section 2: Manage Candidates -->
+          <!-- Section 2: Manage Categories / Electoral Seats -->
           <div class="unified-setup-step">
             <div class="step-header">
               <span class="step-num">2</span>
+              <span class="step-title">Electoral Seats / Categories</span>
+            </div>
+            <div class="category-preset-row">
+              <span class="text-muted" style="font-size: 0.78rem;">Quick Presets:</span>
+              <div class="category-presets-list" id="modalPresetChips">
+                <button type="button" class="category-preset-chip" data-cat="Boy CR">+ Boy CR</button>
+                <button type="button" class="category-preset-chip" data-cat="Girl CR">+ Girl CR</button>
+                <button type="button" class="category-preset-chip" data-cat="Technical Secretary">+ Technical Secretary</button>
+                <button type="button" class="category-preset-chip" data-cat="Sports Captain">+ Sports Captain</button>
+                <button type="button" class="category-preset-chip" data-cat="Cultural Secretary">+ Cultural Secretary</button>
+              </div>
+            </div>
+            <div class="input-with-button mt-2">
+              <input type="text" id="modalNewCategoryInput" placeholder="Add custom position (e.g. Vice President)">
+              <button type="button" id="modalAddCategoryBtn" class="btn btn-secondary btn-sm">+ Add Seat</button>
+            </div>
+            <div class="active-categories-box mt-2">
+              <span class="text-muted" style="font-size: 0.78rem;">Configured Seats for this Election:</span>
+              <div id="modalActiveCategoriesList" class="active-categories-list mt-1"></div>
+            </div>
+          </div>
+
+          <!-- Section 3: Manage Candidates -->
+          <div class="unified-setup-step">
+            <div class="step-header">
+              <span class="step-num">3</span>
               <span class="step-title">Candidate Registry for this Election</span>
             </div>
             <div class="form-row">
               <div class="form-group flex-1">
-                <label for="manageCandCategory">Category</label>
+                <label for="manageCandCategory">Contested Seat</label>
                 <select id="manageCandCategory">
-                  <option value="boy_cr">Boy CR (Category A)</option>
-                  <option value="girl_cr">Girl CR (Category B)</option>
+                  <!-- Dynamically populated from election categories -->
                 </select>
               </div>
               <div class="form-group flex-2">
@@ -767,15 +720,8 @@
               + Register Candidate to this Election
             </button>
 
-            <div class="staged-candidates-grid mt-3">
-              <div class="candidate-table-wrapper boy-wrapper">
-                <h4>Boy CR Candidates</h4>
-                <div id="manageModalBoyCandList" class="admin-candidate-list"></div>
-              </div>
-              <div class="candidate-table-wrapper girl-wrapper">
-                <h4>Girl CR Candidates</h4>
-                <div id="manageModalGirlCandList" class="admin-candidate-list"></div>
-              </div>
+            <div class="staged-candidates-grid mt-3" id="manageModalCandidatesContainer">
+              <!-- Dynamically populated grouped by category -->
             </div>
           </div>
         </div>

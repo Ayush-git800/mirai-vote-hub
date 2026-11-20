@@ -696,11 +696,11 @@ p {
   margin-top: auto;
 }
 
-/* VIEW 2: Complete Dual-Seat Voting Booth (#ballotView) */
+/* VIEW 2: Complete Multi-Seat Voting Booth (#ballotView) */
 .dual-seat-columns {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 24px;
   align-items: start;
 }
 
@@ -1664,6 +1664,129 @@ textarea:focus,
 [data-theme="light"] .btn-warning:hover:not(:disabled) {
   background: rgba(217, 119, 6, 0.22);
   color: #78350f;
+}
+
+/* Dynamic Electoral Categories & Chips */
+.category-preset-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.category-presets-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.category-preset-chip {
+  background: rgba(0, 240, 255, 0.08);
+  border: 1px dashed var(--border-cyan);
+  color: var(--neon-cyan);
+  padding: 0.3rem 0.65rem;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.category-preset-chip:hover {
+  background: rgba(0, 240, 255, 0.2);
+  border-style: solid;
+  transform: translateY(-1px);
+}
+
+[data-theme="light"] .category-preset-chip {
+  background: rgba(2, 132, 199, 0.08);
+  border-color: rgba(2, 132, 199, 0.4);
+  color: #0284c7;
+}
+
+[data-theme="light"] .category-preset-chip:hover {
+  background: rgba(2, 132, 199, 0.16);
+}
+
+.active-categories-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.active-category-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-full);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+  transition: var(--transition);
+}
+
+.active-category-chip.accent-0 {
+  border-color: rgba(0, 240, 255, 0.5);
+  color: var(--neon-cyan);
+}
+
+.active-category-chip.accent-1 {
+  border-color: rgba(255, 0, 123, 0.5);
+  color: var(--neon-magenta);
+}
+
+.active-category-chip.accent-2 {
+  border-color: rgba(16, 185, 129, 0.5);
+  color: var(--neon-emerald);
+}
+
+.active-category-chip.accent-3 {
+  border-color: rgba(245, 158, 11, 0.5);
+  color: var(--neon-amber);
+}
+
+.active-category-chip.accent-4 {
+  border-color: rgba(168, 85, 247, 0.5);
+  color: #c084fc;
+}
+
+.active-category-chip .remove-cat-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  transition: color 0.2s ease;
+}
+
+.active-category-chip .remove-cat-btn:hover {
+  color: var(--neon-rose);
+}
+
+/* Category Accent Classes */
+.border-accent-0 { border-left: 4px solid var(--neon-cyan) !important; }
+.border-accent-1 { border-left: 4px solid var(--neon-magenta) !important; }
+.border-accent-2 { border-left: 4px solid var(--neon-emerald) !important; }
+.border-accent-3 { border-left: 4px solid var(--neon-amber) !important; }
+.border-accent-4 { border-left: 4px solid #a855f7 !important; }
+
+.badge-accent-0 { background: rgba(0, 240, 255, 0.15); border: 1px solid var(--neon-cyan); color: var(--neon-cyan); }
+.badge-accent-1 { background: rgba(255, 0, 123, 0.15); border: 1px solid var(--neon-magenta); color: var(--neon-magenta); }
+.badge-accent-2 { background: rgba(16, 185, 129, 0.15); border: 1px solid var(--neon-emerald); color: var(--neon-emerald); }
+.badge-accent-3 { background: rgba(245, 158, 11, 0.15); border: 1px solid var(--neon-amber); color: var(--neon-amber); }
+.badge-accent-4 { background: rgba(168, 85, 247, 0.15); border: 1px solid #a855f7; color: #c084fc; }
+
+.results-categories-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
 .candidate-table-wrapper h4 {
