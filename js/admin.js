@@ -1279,7 +1279,10 @@ export function initAdminElectionsTable() {
 
     renderLedgerRows();
   }, (err) => {
-    console.error("Admin elections ledger error:", err);
+    console.warn("Admin elections ledger notice:", err);
+    if (tbody) {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 2rem; color: var(--text-muted);">${err.code === "permission-denied" ? "Admin authentication required to view ledger." : "No elections currently active in ledger."}</td></tr>`;
+    }
   });
 }
 
@@ -1288,6 +1291,28 @@ export function initAdminElectionsTable() {
 // ============================================================================
 
 document.addEventListener("DOMContentLoaded", () => {
+  // Bind Admin Toggle Button synchronously first before any network operations
+  const adminToggleBtn = document.getElementById("adminToggleBtn");
+  const modal = document.getElementById("adminLoginModal");
+  if (adminToggleBtn && modal) {
+    adminToggleBtn.addEventListener("click", () => {
+      modal.classList.remove("hidden");
+      modal.style.display = "flex";
+      setTimeout(() => {
+        document.getElementById("adminEmailInput")?.focus();
+      }, 50);
+    });
+  }
+
+  // Close Admin Login Modal
+  const closeAdminLoginModal = document.getElementById("closeAdminLoginModal");
+  if (closeAdminLoginModal && modal) {
+    closeAdminLoginModal.addEventListener("click", () => {
+      modal.classList.add("hidden");
+      modal.style.display = "none";
+    });
+  }
+
   // Check persisted admin session on load
   checkAdminSession();
 
@@ -1302,24 +1327,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const user = document.getElementById("adminEmailInput")?.value;
       const pass = document.getElementById("adminPasswordInput")?.value;
       authenticateAdmin(user, pass);
-    });
-  }
-
-  // Admin Toggle Button
-  const adminToggleBtn = document.getElementById("adminToggleBtn");
-  if (adminToggleBtn) {
-    adminToggleBtn.addEventListener("click", () => {
-      const modal = document.getElementById("adminLoginModal");
-      if (modal) modal.classList.remove("hidden");
-    });
-  }
-
-  // Close Admin Login Modal
-  const closeAdminLoginModal = document.getElementById("closeAdminLoginModal");
-  if (closeAdminLoginModal) {
-    closeAdminLoginModal.addEventListener("click", () => {
-      const modal = document.getElementById("adminLoginModal");
-      if (modal) modal.classList.add("hidden");
     });
   }
 

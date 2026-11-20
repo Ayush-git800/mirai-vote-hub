@@ -22,6 +22,11 @@ service cloud.firestore {
       // Election lifecycle management (draft, active, sealed, certified)
       allow create, update, delete: if true;
 
+      // Allow recursive public read on all subcollections under elections
+      match /{document=**} {
+        allow read: if true;
+      }
+
       // Election-specific whitelist subcollection
       match /whitelist/{studentId} {
         allow read: if true;
@@ -50,6 +55,11 @@ service cloud.firestore {
         allow update: if false;
         allow delete: if true;
       }
+    }
+
+    // Universal public read for elections catalog queries
+    match /elections/{document=**} {
+      allow read: if true;
     }
 
     // 3. Root Whitelist collection (fallback and global voter registry)

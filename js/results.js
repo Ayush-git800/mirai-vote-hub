@@ -386,9 +386,31 @@ export function subscribeToElections() {
   const activeCountEl = document.getElementById("activeElectionsCount") || document.querySelector(".header-stats-pill .pill-number");
   if (!electionsGrid) return;
 
+  // Timeout fallback to ensure the spinner never hangs indefinitely
+  let initialLoaded = false;
+  const loadTimeout = setTimeout(() => {
+    if (!initialLoaded) {
+      const loadingPlaceholder = document.getElementById("electionsLoading");
+      if (loadingPlaceholder && electionsGrid.contains(loadingPlaceholder)) {
+        updateGlobalElectionStatusPill(0);
+        electionsGrid.innerHTML = `
+          <div class="empty-elections-card col-span-full">
+            <div class="empty-icon">🗳️</div>
+            <h3>Campus Democracy Ledger</h3>
+            <p>The election ledger is active. No cohort elections are currently open for voting.</p>
+            <small>Election Commission officers can authenticate via 'Admin Access' to launch an election.</small>
+          </div>
+        `;
+      }
+    }
+  }, 4000);
+
   const electionsCol = collection(db, "elections");
 
   onSnapshot(electionsCol, (snapshot) => {
+    initialLoaded = true;
+    clearTimeout(loadTimeout);
+
     if (snapshot.empty) {
       updateGlobalElectionStatusPill(0);
       electionsGrid.innerHTML = `
@@ -578,14 +600,20 @@ export function subscribeToElections() {
       updateElectionCardsEligibility(state.studentData.rollNo);
     }
   }, (err) => {
-    console.error("Error subscribing to elections collection:", err);
+    initialLoaded = true;
+    clearTimeout(loadTimeout);
+    console.warn("Notice subscribing to elections collection:", err);
     updateGlobalElectionStatusPill(0);
+    const label = document.getElementById("globalElectionStatusLabel");
+    if (label) {
+      label.textContent = err.code === "permission-denied" ? "Permission Notice" : "Ledger Ready";
+    }
     if (electionsGrid) {
       electionsGrid.innerHTML = `
         <div class="empty-elections-card col-span-full">
           <div class="empty-icon">⚠️</div>
-          <h3>Ledger Connectivity Notice</h3>
-          <p>Connecting to Firestore real-time ledger. If this persists, verify your security rules.</p>
+          <h3>${err.code === "permission-denied" ? "Ledger Access Notice" : "Connection Notice"}</h3>
+          <p>${err.code === "permission-denied" ? "Firestore read permission check. Check firestore.rules." : "Connecting to Firestore real-time ledger. If this persists, verify network connectivity."}</p>
         </div>
       `;
     }

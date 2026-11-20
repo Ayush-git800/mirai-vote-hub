@@ -711,6 +711,10 @@ document.addEventListener("DOMContentLoaded", () => {
   if (adminToggleBtn && adminModal) {
     adminToggleBtn.addEventListener("click", () => {
       adminModal.classList.remove("hidden");
+      adminModal.style.display = "flex";
+      setTimeout(() => {
+        document.getElementById("adminEmailInput")?.focus();
+      }, 50);
     });
   }
 
@@ -718,6 +722,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (closeAdminModal && adminModal) {
     closeAdminModal.addEventListener("click", () => {
       adminModal.classList.add("hidden");
+      adminModal.style.display = "none";
     });
   }
 });
