@@ -6,7 +6,7 @@ import { getAuth } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth
 import { getFirestore } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyC1cDy0hVSIYWaQvK3kfoEQRfo9nMOWNOI",
+  apiKey: "AIzaSyC1cDy0hVSIYwAQvK3kfoEQRfo9nMOWN0I",
   authDomain: "mirai-election-portal.firebaseapp.com",
   projectId: "mirai-election-portal",
   storageBucket: "mirai-election-portal.firebasestorage.app",

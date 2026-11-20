@@ -1,12 +1,7 @@
 // Mirai Vote Hub - Authentication, Access Control & Dynamic Eligibility Engine
 // Mirai School of Technology
 
-import { auth, db } from "./firebase-config.js";
-import { 
-  signInAnonymously, 
-  signOut, 
-  onAuthStateChanged 
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { db } from "./firebase-config.js";
 import { 
   doc, 
   getDoc, 
@@ -234,11 +229,6 @@ export async function verifyStudentRoll(rollNo) {
     if (checkRollSpinner) checkRollSpinner.classList.remove("hidden");
     if (checkRollBtn) checkRollBtn.disabled = true;
 
-    // 1. Ensure Firebase anonymous session for communication
-    if (!auth.currentUser) {
-      await signInAnonymously(auth);
-    }
-
     const targetElectionId = currentActiveElectionId || (typeof getCurrentElectionId === "function" ? getCurrentElectionId() : "section-a");
 
     // 2. Check Whitelist First: Verify elections/{electionId}/whitelist/{studentId} exists
@@ -361,10 +351,6 @@ export async function createStudentPasskey(newPass, confirmPass) {
     if (setPasskeySpinner) setPasskeySpinner.classList.remove("hidden");
     if (setPasskeyBtn) setPasskeyBtn.disabled = true;
 
-    if (!auth.currentUser) {
-      await signInAnonymously(auth);
-    }
-
     const hashedInput = await hashPasskey(pass);
     const userRef = doc(db, "users", roll);
 
@@ -381,6 +367,7 @@ export async function createStudentPasskey(newPass, confirmPass) {
     const wlData = pendingWhitelistData || {};
 
     // Establish student session
+    state.currentUser = { uid: roll };
     state.studentData = {
       rollNo: roll,
       name: wlData.name || `Student ${roll}`,
@@ -440,10 +427,6 @@ export async function verifyStudentPasskey(passkey) {
     if (claimSpinner) claimSpinner.classList.remove("hidden");
     if (claimBtn) claimBtn.disabled = true;
 
-    if (!auth.currentUser) {
-      await signInAnonymously(auth);
-    }
-
     const userRef = doc(db, "users", roll);
     const userSnap = await getDoc(userRef);
 
@@ -470,6 +453,7 @@ export async function verifyStudentPasskey(passkey) {
 
     const wlData = pendingWhitelistData || {};
 
+    state.currentUser = { uid: roll };
     state.studentData = {
       rollNo: roll,
       name: wlData.name || `Student ${roll}`,
@@ -524,7 +508,6 @@ export async function claimStudentBallot(rollNo, passkey) {
 
 // Sign out handler
 export async function performLogout() {
-  await signOut(auth);
   localStorage.removeItem("mirai_vote_session");
   sessionStorage.removeItem("isAdminAuthenticated");
   state.currentUser = null;
@@ -619,15 +602,12 @@ export async function initSession() {
     const session = JSON.parse(rawSession);
     if (!session || !session.rollNo) return;
 
-    if (!auth.currentUser) {
-      await signInAnonymously(auth);
-    }
-
     // Refresh state from Firestore
     const rootWhitelistRef = doc(db, "whitelist", session.rollNo);
     const rootWhitelistSnap = await getDoc(rootWhitelistRef);
     const data = rootWhitelistSnap.exists() ? rootWhitelistSnap.data() : {};
 
+    state.currentUser = { uid: session.rollNo };
     state.studentData = {
       rollNo: session.rollNo,
       name: data.name || session.name || `Student ${session.rollNo}`,

@@ -1,5 +1,6 @@
 {
   "projects": {
+    "default": "mirai-election-portal",
     "mirai-vote-hub": "mirai-election-portal"
   },
   "targets": {},
