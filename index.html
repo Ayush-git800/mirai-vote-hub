@@ -427,186 +427,182 @@
           </div>
 
           <div class="admin-grid">
-            <!-- Module A: Create Election Form -->
-            <div class="admin-card">
+            <!-- Card 1: Unified Create & Configure Election Engine -->
+            <div class="admin-card col-span-2 unified-creator-card">
               <div class="admin-card-header">
-                <h3>🗳️ Create Election</h3>
-                <span class="card-badge">Setup</span>
+                <div>
+                  <h3>🗳️ Create &amp; Configure Election</h3>
+                  <p class="admin-help-text">Unified election architect: define cohort scope, attach verified voter whitelist, and stage certified candidates in a single atomic workflow.</p>
+                </div>
+                <span class="card-badge">Unified Architecture</span>
               </div>
-              <p class="admin-help-text">Configure a new institutional election cohort and instantiate its ledger.</p>
 
-              <form id="createElectionForm" class="admin-form">
-                <div class="form-group">
-                  <label for="newElectionTitle">Election Title</label>
-                  <input type="text" id="newElectionTitle" placeholder="e.g. Section A - CR Election 2026" required>
+              <form id="unifiedElectionForm" class="unified-form-wrapper">
+                <!-- Step 1: Election Details & Scope -->
+                <div class="unified-setup-step">
+                  <div class="step-header">
+                    <span class="step-num">1</span>
+                    <span class="step-title">Election Scope &amp; Duration Mode</span>
+                  </div>
+                  
+                  <div class="form-row">
+                    <div class="form-group flex-2">
+                      <label for="unifiedElectionTitle">Election Title</label>
+                      <input type="text" id="unifiedElectionTitle" placeholder="e.g. CR Election 2026" required>
+                    </div>
+                    <div class="form-group flex-2">
+                      <label for="unifiedElectionScope">Scope / Section</label>
+                      <select id="unifiedElectionScope" class="form-select">
+                        <option value="Section A">Section A</option>
+                        <option value="Section B">Section B</option>
+                        <option value="Section C">Section C</option>
+                        <option value="Section D">Section D</option>
+                        <option value="All Sections (Common)">All Sections (Common)</option>
+                        <option value="custom">Other / Custom Cohort...</option>
+                      </select>
+                    </div>
+                    <div class="form-group flex-1 hidden" id="unifiedCustomScopeGroup">
+                      <label for="unifiedCustomScopeInput">Custom Scope Name</label>
+                      <input type="text" id="unifiedCustomScopeInput" placeholder="e.g. Honours Batch">
+                    </div>
+                  </div>
+
+                  <div class="form-row">
+                    <div class="form-group flex-2">
+                      <label for="unifiedElectionMode">Voting Duration Mode</label>
+                      <select id="unifiedElectionMode" class="form-select">
+                        <option value="manual">Manual (Until Closed by Admin)</option>
+                        <option value="timed">Timed Auto-Lock (Set minutes)</option>
+                      </select>
+                    </div>
+                    <div class="form-group flex-1 hidden" id="unifiedDurationGroup">
+                      <label for="unifiedDurationMinutes">Duration (Minutes)</label>
+                      <input type="number" id="unifiedDurationMinutes" min="1" max="1440" value="60" placeholder="e.g. 60">
+                    </div>
+                  </div>
                 </div>
-                <div class="form-group">
-                  <label for="newElectionSection">Class Section / Cohort</label>
-                  <input type="text" id="newElectionSection" placeholder="e.g. Section A" required>
+
+                <!-- Step 2: Election-Specific Voter Whitelist -->
+                <div class="unified-setup-step">
+                  <div class="step-header">
+                    <span class="step-num">2</span>
+                    <span class="step-title">Election-Specific Voter Whitelist</span>
+                    <span class="badge badge-secondary ml-auto" id="unifiedWhitelistCountBadge">0 Roll Numbers Staged</span>
+                  </div>
+                  <p class="admin-help-text">Attach certified Student IDs / Roll Numbers directly to this election (strictly isolated so Section A's whitelist never mixes with other cohorts).</p>
+
+                  <div class="file-drop-zone" id="unifiedWhitelistDropZone">
+                    <input type="file" id="unifiedWhitelistFileInput" accept=".csv,.json" class="file-input-hidden">
+                    <div class="drop-zone-content">
+                      <span class="upload-icon">📂</span>
+                      <span>Drag &amp; drop roster file (.csv or .json) or click to browse</span>
+                      <small>Auto-detects roll number column</small>
+                    </div>
+                  </div>
+
+                  <div class="form-group mt-2">
+                    <label for="unifiedWhitelistTextarea">Paste Student Roll Numbers (Up to 120+ Roster):</label>
+                    <textarea 
+                      id="unifiedWhitelistTextarea" 
+                      rows="4" 
+                      class="form-textarea mono" 
+                      placeholder="Paste Roll Numbers (one per line, comma or space separated):&#10;23MST001&#10;23MST002&#10;23MST003"
+                    ></textarea>
+                  </div>
                 </div>
-                <div class="form-group">
-                  <label for="newElectionMode">Voting Duration Mode</label>
-                  <select id="newElectionMode" class="form-select">
-                    <option value="manual">Manual (Infinite until closed by Admin)</option>
-                    <option value="timed">Timed Auto-Lock (Set minutes)</option>
-                  </select>
+
+                <!-- Step 3: Election-Specific Candidate Registry -->
+                <div class="unified-setup-step">
+                  <div class="step-header">
+                    <span class="step-num">3</span>
+                    <span class="step-title">Election-Specific Candidate Registry</span>
+                    <span class="badge badge-secondary ml-auto" id="stagedCandCountBadge">0 Nominees Staged</span>
+                  </div>
+                  <p class="admin-help-text">Build and stage dual-seat nominees for this election. Nominees appear in the preview below and will be saved atomically with this election.</p>
+
+                  <div class="candidate-builder-box">
+                    <div class="form-row">
+                      <div class="form-group flex-1">
+                        <label for="stagedCandCategory">Category</label>
+                        <select id="stagedCandCategory">
+                          <option value="boy_cr">Boy CR (Category A)</option>
+                          <option value="girl_cr">Girl CR (Category B)</option>
+                        </select>
+                      </div>
+                      <div class="form-group flex-2">
+                        <label for="stagedCandName">Candidate Name</label>
+                        <input type="text" id="stagedCandName" placeholder="e.g. Aarav Sharma">
+                      </div>
+                      <div class="form-group flex-1">
+                        <label for="stagedCandRoll">Roll Number</label>
+                        <input type="text" id="stagedCandRoll" placeholder="e.g. 23MST012">
+                      </div>
+                    </div>
+
+                    <div class="form-row">
+                      <div class="form-group flex-3">
+                        <label for="stagedCandManifesto">Manifesto / Agenda Statement</label>
+                        <input type="text" id="stagedCandManifesto" placeholder="Core agenda for representation, academic welfare, and cohort activities">
+                      </div>
+                      <div class="form-group flex-2">
+                        <label for="stagedCandPhoto">Photo URL (Optional)</label>
+                        <input type="url" id="stagedCandPhoto" placeholder="https://...">
+                      </div>
+                    </div>
+
+                    <button type="button" id="stageCandidateBtn" class="btn btn-cyber-outline btn-sm">
+                      + Add Nominee to This Election
+                    </button>
+                  </div>
+
+                  <!-- Staged Nominees Preview Grid -->
+                  <div class="staged-candidates-grid mt-3">
+                    <div class="candidate-table-wrapper boy-wrapper">
+                      <h4>Category A: Staged Boy CR Nominees</h4>
+                      <div id="stagedBoyCandidatesList" class="admin-candidate-list">
+                        <p class="text-muted" style="font-size:0.8rem; padding: 0.5rem 0;">No Boy CR nominees staged yet.</p>
+                      </div>
+                    </div>
+
+                    <div class="candidate-table-wrapper girl-wrapper">
+                      <h4>Category B: Staged Girl CR Nominees</h4>
+                      <div id="stagedGirlCandidatesList" class="admin-candidate-list">
+                        <p class="text-muted" style="font-size:0.8rem; padding: 0.5rem 0;">No Girl CR nominees staged yet.</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div class="form-group hidden" id="electionDurationGroup">
-                  <label for="newElectionDuration">Voting Duration (Minutes)</label>
-                  <input type="number" id="newElectionDuration" min="1" max="1440" value="60" placeholder="e.g. 60">
-                </div>
-                <button type="submit" id="createElectionBtn" class="btn btn-cyber-primary btn-block">
-                  Create &amp; Register Election
+
+                <!-- Final Action Button -->
+                <button type="submit" id="createUnifiedElectionBtn" class="btn btn-cyber-primary btn-block btn-lg" style="margin-top: 0.5rem; font-size: 1rem; padding: 0.85rem;">
+                  <span>🚀 Create &amp; Save Complete Election (Draft)</span>
                 </button>
               </form>
             </div>
 
-            <!-- Module B: Batch Whitelist Importer -->
-            <div class="admin-card">
-              <div class="admin-card-header">
-                <h3>📋 Batch Whitelist Importer</h3>
-                <span class="card-badge">Zero Dummy Data</span>
-              </div>
-              <p class="admin-help-text">Paste up to 120+ Student IDs / Roll Numbers (one per line, comma-separated, or CSV format).</p>
-              
-              <div class="file-drop-zone" id="whitelistDropZone">
-                <input type="file" id="whitelistFileInput" accept=".csv,.json" class="file-input-hidden">
-                <div class="drop-zone-content">
-                  <span class="upload-icon">📂</span>
-                  <span>Drag &amp; drop roster file (.csv or .json)</span>
-                  <small>Auto-detects rollNo column</small>
-                </div>
-              </div>
-
-              <div class="form-group mt-3">
-                <label for="whitelistBatchTextarea">Paste Student IDs (Up to 120+ Roster):</label>
-                <textarea 
-                  id="whitelistBatchTextarea" 
-                  rows="6" 
-                  class="form-textarea mono" 
-                  style="min-height: 140px;"
-                  placeholder="Paste up to 120+ Roll Numbers:&#10;23MST001&#10;23MST002&#10;23MST003&#10;23MST004&#10;...or comma-separated"
-                ></textarea>
-                <!-- Hidden compatibility field -->
-                <textarea id="whitelistJsonText" class="hidden"></textarea>
-              </div>
-
-              <button id="processWhitelistBtn" class="btn btn-cyber-primary btn-block">
-                Process Whitelist (Up to 120+ Voters)
-              </button>
-              <!-- Compatibility hidden trigger -->
-              <button id="importWhitelistBtn" class="hidden"></button>
-              <div id="whitelistImportStatus" class="import-status mt-2"></div>
-            </div>
-
-            <!-- Module C: Candidate Registry Form -->
+            <!-- Card 2: Voter Audit & Roll Lookup -->
             <div class="admin-card col-span-2">
               <div class="admin-card-header">
-                <h3>👥 Candidate Registry</h3>
-                <span class="card-badge">Dual-Seat Registration</span>
+                <h3>🔍 Voter Audit &amp; Roll Lookup</h3>
+                <span class="card-badge">Integrity Check</span>
               </div>
-              <p class="admin-help-text">Register verified student nominees for Boy CR (Category A) or Girl CR (Category B).</p>
-
-              <form id="adminCandidateRegistryForm" class="candidate-form-inline">
+              <p class="admin-help-text">Search any student roll number across all registered elections or a specific cohort to verify certification, ballot timestamp, and decoupled audit receipts.</p>
+              
+              <div class="voter-lookup-box">
                 <div class="form-row">
                   <div class="form-group flex-1">
-                    <label for="adminCandCategory">Category</label>
-                    <select id="adminCandCategory" required>
-                      <option value="boy_cr">Boy CR Nominee (Category A)</option>
-                      <option value="girl_cr">Girl CR Nominee (Category B)</option>
+                    <label for="voterLookupElectionSelect">Target Election Cohort</label>
+                    <select id="voterLookupElectionSelect" class="form-select">
+                      <option value="">All Elections (Global Lookup)</option>
                     </select>
                   </div>
                   <div class="form-group flex-2">
-                    <label for="adminCandName">Candidate Name</label>
-                    <input type="text" id="adminCandName" placeholder="e.g. Aarav Sharma" required>
+                    <label for="voterLookupInput">Student Roll Number</label>
+                    <div class="input-with-button">
+                      <input type="text" id="voterLookupInput" placeholder="Enter Roll No (e.g. 23MST001)" class="mono">
+                      <button id="voterLookupBtn" class="btn btn-cyber-primary" type="button">Verify Status</button>
+                    </div>
                   </div>
-                  <div class="form-group flex-1">
-                    <label for="adminCandRoll">Roll Number</label>
-                    <input type="text" id="adminCandRoll" placeholder="e.g. 23MST012" required>
-                  </div>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group flex-3">
-                    <label for="adminCandManifesto">Manifesto / Agenda Statement</label>
-                    <input type="text" id="adminCandManifesto" placeholder="Core vision for representation, academic welfare, and cohort activities">
-                  </div>
-                  <div class="form-group flex-2">
-                    <label for="adminCandPhoto">Photo URL (Optional)</label>
-                    <input type="url" id="adminCandPhoto" placeholder="https://...">
-                  </div>
-                </div>
-
-                <button type="submit" id="saveCandidateBtn" class="btn btn-cyber-primary">
-                  + Register Certified Candidate
-                </button>
-              </form>
-
-              <!-- Certified Candidate Display Lists -->
-              <div class="candidate-management-tables mt-4">
-                <div class="candidate-table-wrapper boy-wrapper">
-                  <h4>Category A: Boy CR Contestants</h4>
-                  <div id="adminBoyCandidateList" class="admin-candidate-list">
-                    <!-- Populated dynamically -->
-                  </div>
-                </div>
-
-                <div class="candidate-table-wrapper girl-wrapper">
-                  <h4>Category B: Girl CR Contestants</h4>
-                  <div id="adminGirlCandidateList" class="admin-candidate-list">
-                    <!-- Populated dynamically -->
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Module D: Election Lifecycle Controls -->
-            <div class="admin-card">
-              <div class="admin-card-header">
-                <h3>⚡ Election Lifecycle Controls</h3>
-                <span class="card-badge">State Machine</span>
-              </div>
-              <p class="admin-help-text">Govern operational portal states and release certified cryptographic tallies.</p>
-              
-              <div class="lifecycle-controls-box">
-                <label class="control-title">Portal State Transitions</label>
-                <div class="lifecycle-buttons-grid">
-                  <button class="btn btn-cyber-outline state-btn" data-state="ready" id="lifecycleDraftBtn">Set to Draft</button>
-                  <button class="btn btn-cyber-outline state-btn" data-state="active" id="lifecycleActiveBtn">Start Voting (Active)</button>
-                  <button class="btn btn-cyber-outline state-btn" data-state="concluded" id="lifecycleConcludedBtn">End Voting (Sealed)</button>
-                  <button class="btn btn-cyber-outline reveal-btn" data-stage="2" id="lifecyclePublishBtn">Publish Certified Results</button>
-                </div>
-                <!-- Compatibility aliases -->
-                <div class="hidden">
-                  <button id="stage1Btn" data-stage="1"></button>
-                  <button id="stage2Btn" data-stage="2"></button>
-                  <button id="stateReadyBtn" data-state="ready"></button>
-                  <button id="stateActiveBtn" data-state="active"></button>
-                  <button id="statePausedBtn" data-state="paused"></button>
-                  <button id="stateConcludedBtn" data-state="concluded"></button>
-                </div>
-              </div>
-
-              <div class="control-group mt-4 danger-zone">
-                <label class="danger-title">Commission Emergency Purge</label>
-                <button id="purgeElectionDataBtn" class="btn btn-danger btn-sm">
-                  Reset Election Ballot Ledger (Zero Baseline)
-                </button>
-              </div>
-            </div>
-
-            <!-- Module E: Voter Audit & Roll Lookup -->
-            <div class="admin-card">
-              <div class="admin-card-header">
-                <h3>🔍 Voter Audit &amp; Lookup</h3>
-                <span class="card-badge">Integrity Check</span>
-              </div>
-              <p class="admin-help-text">Search any student roll number to verify whitelisting status, vote state, and receipt timestamp.</p>
-              
-              <div class="voter-lookup-box">
-                <div class="input-with-button">
-                  <input type="text" id="voterLookupInput" placeholder="Enter Roll No (e.g. 23MST001)" class="mono">
-                  <button id="voterLookupBtn" class="btn btn-cyber-primary" type="button">Verify Status</button>
                 </div>
                 <div id="voterLookupResult" class="voter-lookup-result hidden"></div>
                 <button id="emergencyResetVoterBtn" class="btn btn-danger btn-sm mt-3 hidden" type="button">
@@ -615,7 +611,7 @@
               </div>
             </div>
 
-            <!-- Module F: Election Management Ledger & Certified Export -->
+            <!-- Card 3: Election Management Ledger & Certified Export -->
             <div class="admin-card col-span-2">
               <div class="admin-card-header">
                 <h3>📋 Election Management Ledger</h3>
@@ -628,7 +624,7 @@
                   </button>
                 </div>
               </div>
-              <p class="admin-help-text">Oversee all registered elections, inspect mode and timers, change lifecycle status, archive or delete test cohorts.</p>
+              <p class="admin-help-text">Oversee all registered elections, inspect mode and timers, change lifecycle status, manage nominees &amp; whitelist, or delete cohorts.</p>
               
               <div class="results-table-container mt-3">
                 <table class="results-table" id="adminElectionsTable">
@@ -704,6 +700,88 @@
             <button type="submit" class="btn btn-cyber-primary btn-block">Authenticate Officer</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- Modal: Manage Whitelist & Candidates per Election -->
+    <div id="manageElectionModal" class="modal-overlay hidden">
+      <div class="modal-card" style="max-width: 680px; max-height: 90vh; display: flex; flex-direction: column;">
+        <div class="modal-header">
+          <div>
+            <h3 id="manageModalElectionTitle" style="margin-bottom: 2px;">Manage Election Cohort</h3>
+            <small id="manageModalElectionSub" class="text-muted mono">election-id</small>
+          </div>
+          <button class="modal-close" id="closeManageElectionModalBtn">&times;</button>
+        </div>
+        <div class="modal-body" style="overflow-y: auto; display: flex; flex-direction: column; gap: 1.25rem;">
+          <!-- Section 1: Add to Whitelist -->
+          <div class="unified-setup-step">
+            <div class="step-header">
+              <span class="step-num">1</span>
+              <span class="step-title">Add / Top-Up Voters (Whitelist)</span>
+              <span class="badge badge-secondary ml-auto" id="manageModalWhitelistCount">0 Whitelisted</span>
+            </div>
+            <p class="admin-help-text">Append additional student roll numbers to this specific election's whitelist.</p>
+            <div class="form-group">
+              <textarea id="manageModalWhitelistInput" rows="3" class="form-textarea mono" placeholder="Paste additional Roll Numbers (one per line, comma or space separated):&#10;23MST045&#10;23MST046"></textarea>
+            </div>
+            <div style="display: flex; justify-content: flex-end;">
+              <button type="button" id="manageModalAppendWhitelistBtn" class="btn btn-cyber-primary btn-sm">+ Append Roll Numbers to Whitelist</button>
+            </div>
+          </div>
+
+          <!-- Section 2: Manage Candidates -->
+          <div class="unified-setup-step">
+            <div class="step-header">
+              <span class="step-num">2</span>
+              <span class="step-title">Candidate Registry for this Election</span>
+            </div>
+            <div class="form-row">
+              <div class="form-group flex-1">
+                <label for="manageCandCategory">Category</label>
+                <select id="manageCandCategory">
+                  <option value="boy_cr">Boy CR (Category A)</option>
+                  <option value="girl_cr">Girl CR (Category B)</option>
+                </select>
+              </div>
+              <div class="form-group flex-2">
+                <label for="manageCandName">Candidate Name</label>
+                <input type="text" id="manageCandName" placeholder="e.g. Rahul Verma">
+              </div>
+              <div class="form-group flex-1">
+                <label for="manageCandRoll">Roll Number</label>
+                <input type="text" id="manageCandRoll" placeholder="e.g. 23MST025">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group flex-3">
+                <label for="manageCandManifesto">Manifesto / Agenda</label>
+                <input type="text" id="manageCandManifesto" placeholder="Core agenda for student welfare">
+              </div>
+              <div class="form-group flex-2">
+                <label for="manageCandPhoto">Photo URL (Optional)</label>
+                <input type="url" id="manageCandPhoto" placeholder="https://...">
+              </div>
+            </div>
+            <button type="button" id="manageModalAddCandBtn" class="btn btn-cyber-primary btn-sm mt-2">
+              + Register Candidate to this Election
+            </button>
+
+            <div class="staged-candidates-grid mt-3">
+              <div class="candidate-table-wrapper boy-wrapper">
+                <h4>Boy CR Candidates</h4>
+                <div id="manageModalBoyCandList" class="admin-candidate-list"></div>
+              </div>
+              <div class="candidate-table-wrapper girl-wrapper">
+                <h4>Girl CR Candidates</h4>
+                <div id="manageModalGirlCandList" class="admin-candidate-list"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="manageModalCloseBtn">Done / Close</button>
+        </div>
       </div>
     </div>
 

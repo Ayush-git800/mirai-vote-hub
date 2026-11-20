@@ -131,13 +131,20 @@ const finalSubmitVoteBtn = document.getElementById("finalSubmitVoteBtn");
 const submitSpinner = document.getElementById("submitSpinner");
 
 // Fetch and render candidates
-export async function loadCandidates() {
+export async function loadCandidates(electionId = currentElectionId) {
   try {
-    const candidatesCol = collection(db, "candidates");
-    const snapshot = await getDocs(candidatesCol);
-
     candidatesCache.boy_cr = [];
     candidatesCache.girl_cr = [];
+
+    let snapshot = null;
+    if (electionId) {
+      const electionCandCol = collection(db, "elections", electionId, "candidates");
+      snapshot = await getDocs(electionCandCol);
+    }
+    if (!snapshot || snapshot.empty) {
+      const candidatesCol = collection(db, "candidates");
+      snapshot = await getDocs(candidatesCol);
+    }
 
     snapshot.forEach(docSnap => {
       const data = { id: docSnap.id, ...docSnap.data() };
@@ -516,6 +523,7 @@ document.addEventListener("DOMContentLoaded", () => {
   window.addEventListener("electionSelected", (e) => {
     const meta = e.detail;
     if (!meta) return;
+    loadCandidates(meta.id);
     const titleEl = document.getElementById("ballotElectionTitle");
     if (titleEl && meta.title) titleEl.textContent = meta.title;
     if (meta.votingMode === "timed" && meta.closesAt) {

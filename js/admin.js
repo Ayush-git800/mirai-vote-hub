@@ -19,31 +19,14 @@ import {
   onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// Whitelist Ingestion Elements
-const whitelistFileInput = document.getElementById("whitelistFileInput");
-const whitelistDropZone = document.getElementById("whitelistDropZone");
-const whitelistBatchTextarea = document.getElementById("whitelistBatchTextarea");
-const whitelistJsonText = document.getElementById("whitelistJsonText");
-const processWhitelistBtn = document.getElementById("processWhitelistBtn");
-const importWhitelistBtn = document.getElementById("importWhitelistBtn");
-const whitelistImportStatus = document.getElementById("whitelistImportStatus");
+// Active election being managed in modal
+let activeManageElectionId = null;
 
-// State & Reveal Elements
-const lifecycleDraftBtn = document.getElementById("lifecycleDraftBtn");
-const lifecycleActiveBtn = document.getElementById("lifecycleActiveBtn");
-const lifecycleConcludedBtn = document.getElementById("lifecycleConcludedBtn");
-const lifecyclePublishBtn = document.getElementById("lifecyclePublishBtn");
-const stage1Btn = document.getElementById("stage1Btn");
-const stage2Btn = document.getElementById("stage2Btn");
-const purgeElectionDataBtn = document.getElementById("purgeElectionDataBtn");
-
-// Candidate Management Elements
-const adminCandidateRegistryForm = document.getElementById("adminCandidateRegistryForm");
-const adminBoyCandidateList = document.getElementById("adminBoyCandidateList");
-const adminGirlCandidateList = document.getElementById("adminGirlCandidateList");
+// In-memory staged candidates for new election architect
+let stagedCandidates = [];
 
 // ============================================================================
-// 1. Admin Authentication Engine (Bypasses Firebase Auth API Key Requirement)
+// 1. Admin Authentication Engine
 // ============================================================================
 
 export function authenticateAdmin(username, password) {
@@ -137,60 +120,11 @@ export function checkAdminSession() {
 }
 
 // ============================================================================
-// 2. Election Creation & Section Management
+// 2. Whitelist Parser Engine
 // ============================================================================
 
-export async function createElection(title, department, section, mode = "manual", durationMinutes = 60) {
-  if (!title) throw new Error("Election title is required.");
-  const safeSection = (section || "A").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-  const electionId = `section-${safeSection || "cohort"}`;
-
-  try {
-    const electionRef = doc(db, "elections", electionId);
-    const electionData = {
-      id: electionId,
-      title: title,
-      section: section || "Section A",
-      status: "draft",
-      revealStage: 1,
-      votingMode: mode || "manual",
-      durationMinutes: Number(durationMinutes) || 60,
-      closesAt: null,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    };
-
-    await setDoc(electionRef, electionData, { merge: true });
-
-    // Also update global election_meta config
-    const metaRef = doc(db, "election_meta", "config");
-    await setDoc(metaRef, {
-      activeElectionId: electionId,
-      title: title,
-      section: section || "Section A",
-      status: "draft",
-      revealStage: 1,
-      votingMode: mode || "manual",
-      durationMinutes: Number(durationMinutes) || 60,
-      closesAt: null,
-      updatedAt: serverTimestamp()
-    }, { merge: true });
-
-    showAlert(`Election '${title}' created successfully (${mode === 'timed' ? `${durationMinutes}m Timed` : 'Manual'})!`, "success");
-    return electionId;
-  } catch (err) {
-    console.error("Create election failed:", err);
-    showAlert(`Failed to create election: ${err.message}`, "error");
-    throw err;
-  }
-}
-
-// ============================================================================
-// 3. Batch Whitelist Importer (Handles whitespace, commas, line breaks, CSV, JSON)
-// ============================================================================
-
-export function parseWhitelistInput(rawText) {
-  const trimmed = rawText.trim();
+export function parseWhitelistInput(rawText, section = "Section A") {
+  const trimmed = (rawText || "").trim();
   if (!trimmed) return [];
 
   // JSON Array Parse attempt
@@ -204,7 +138,7 @@ export function parseWhitelistInput(rawText) {
           rollNo: roll,
           name: item.name || `Student ${roll}`,
           email: item.email || `${roll.toLowerCase()}@mirai.ac.in`,
-          section: item.section || "Section A",
+          section: section || item.section || "Section A",
           hasVoted: false
         };
       }).filter(v => v.rollNo.length >= 4);
@@ -232,7 +166,7 @@ export function parseWhitelistInput(rawText) {
           rollNo: roll,
           name: cols[1] || `Student ${roll}`,
           email: cols[2] || `${roll.toLowerCase()}@mirai.ac.in`,
-          section: "Section A",
+          section: section || "Section A",
           hasVoted: false
         });
       }
@@ -246,7 +180,7 @@ export function parseWhitelistInput(rawText) {
             rollNo: roll,
             name: `Student ${roll}`,
             email: `${roll.toLowerCase()}@mirai.ac.in`,
-            section: "Section A",
+            section: section || "Section A",
             hasVoted: false
           });
         }
@@ -257,6 +191,253 @@ export function parseWhitelistInput(rawText) {
   return voters;
 }
 
+// ============================================================================
+// 3. Staged Candidates Management (Inline Builder)
+// ============================================================================
+
+function renderStagedCandidates() {
+  const boyList = document.getElementById("stagedBoyCandidatesList");
+  const girlList = document.getElementById("stagedGirlCandidatesList");
+  const countBadge = document.getElementById("stagedCandCountBadge");
+
+  if (countBadge) {
+    countBadge.textContent = `${stagedCandidates.length} Nominees Staged`;
+    countBadge.className = stagedCandidates.length > 0 ? "badge badge-primary ml-auto" : "badge badge-secondary ml-auto";
+  }
+
+  const boys = stagedCandidates.filter(c => c.category === "boy_cr");
+  const girls = stagedCandidates.filter(c => c.category === "girl_cr");
+
+  if (boyList) {
+    if (boys.length === 0) {
+      boyList.innerHTML = `<p class="text-muted" style="font-size:0.8rem; padding: 0.5rem 0;">No Boy CR nominees staged yet.</p>`;
+    } else {
+      boyList.innerHTML = "";
+      boys.forEach((c) => {
+        const item = document.createElement("div");
+        item.className = "staged-cand-item";
+        item.innerHTML = `
+          <div>
+            <strong>${c.name}</strong> 
+            <span class="mono" style="color:var(--neon-cyan);">(${c.rollNo})</span>
+          </div>
+          <button type="button" class="btn btn-danger btn-sm staged-remove-btn" data-roll="${c.rollNo}">&times; Remove</button>
+        `;
+        item.querySelector(".staged-remove-btn").addEventListener("click", () => {
+          removeStagedCandidate(c.rollNo);
+        });
+        boyList.appendChild(item);
+      });
+    }
+  }
+
+  if (girlList) {
+    if (girls.length === 0) {
+      girlList.innerHTML = `<p class="text-muted" style="font-size:0.8rem; padding: 0.5rem 0;">No Girl CR nominees staged yet.</p>`;
+    } else {
+      girlList.innerHTML = "";
+      girls.forEach((c) => {
+        const item = document.createElement("div");
+        item.className = "staged-cand-item";
+        item.innerHTML = `
+          <div>
+            <strong>${c.name}</strong> 
+            <span class="mono" style="color:var(--neon-magenta);">(${c.rollNo})</span>
+          </div>
+          <button type="button" class="btn btn-danger btn-sm staged-remove-btn" data-roll="${c.rollNo}">&times; Remove</button>
+        `;
+        item.querySelector(".staged-remove-btn").addEventListener("click", () => {
+          removeStagedCandidate(c.rollNo);
+        });
+        girlList.appendChild(item);
+      });
+    }
+  }
+}
+
+function addStagedCandidate() {
+  const catEl = document.getElementById("stagedCandCategory");
+  const nameEl = document.getElementById("stagedCandName");
+  const rollEl = document.getElementById("stagedCandRoll");
+  const manifestoEl = document.getElementById("stagedCandManifesto");
+  const photoEl = document.getElementById("stagedCandPhoto");
+
+  const name = (nameEl?.value || "").trim();
+  const roll = (rollEl?.value || "").trim().toUpperCase();
+  const cat = catEl?.value || "boy_cr";
+  const manifesto = (manifestoEl?.value || "").trim();
+  const photo = (photoEl?.value || "").trim();
+
+  if (!name) {
+    showAlert("Please enter the candidate's name.", "error");
+    return;
+  }
+  if (!roll) {
+    showAlert("Please enter the candidate's roll number.", "error");
+    return;
+  }
+
+  // Prevent duplicate roll in staging
+  if (stagedCandidates.some(c => c.rollNo === roll)) {
+    showAlert(`Candidate with Roll Number '${roll}' is already staged.`, "error");
+    return;
+  }
+
+  stagedCandidates.push({
+    name,
+    rollNo: roll,
+    category: cat,
+    manifesto: manifesto || "Committed to cohort student welfare and academic representation.",
+    photoUrl: photo || ""
+  });
+
+  // Clear inputs
+  if (nameEl) nameEl.value = "";
+  if (rollEl) rollEl.value = "";
+  if (manifestoEl) manifestoEl.value = "";
+  if (photoEl) photoEl.value = "";
+
+  renderStagedCandidates();
+  showAlert(`Added '${name}' to staged nominees.`, "success");
+}
+
+function removeStagedCandidate(rollNo) {
+  stagedCandidates = stagedCandidates.filter(c => c.rollNo !== rollNo);
+  renderStagedCandidates();
+}
+
+// ============================================================================
+// 4. Unified Election Creation (Atomically commits Election + Whitelist + Candidates)
+// ============================================================================
+
+export async function createUnifiedElection({ title, section, mode, durationMinutes, whitelistText, candidatesList }) {
+  if (!title) throw new Error("Election title is required.");
+  const cleanScope = (section || "Section A").trim();
+  const slug = cleanScope.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+  const electionId = slug ? `election-${slug}` : `election-${Date.now().toString(36)}`;
+
+  try {
+    // 1. Election Document Data
+    const electionRef = doc(db, "elections", electionId);
+    const electionData = {
+      id: electionId,
+      title: title.trim(),
+      section: cleanScope,
+      status: "draft",
+      revealStage: 1,
+      votingMode: mode || "manual",
+      durationMinutes: Number(durationMinutes) || 60,
+      closesAt: null,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    };
+
+    await setDoc(electionRef, electionData, { merge: true });
+
+    // 2. Parse and commit Whitelist
+    const voters = parseWhitelistInput(whitelistText, cleanScope);
+    if (voters.length > 0) {
+      const CHUNK_SIZE = 400;
+      for (let i = 0; i < voters.length; i += CHUNK_SIZE) {
+        const chunk = voters.slice(i, i + CHUNK_SIZE);
+        const batch = writeBatch(db);
+
+        chunk.forEach(voter => {
+          const rollKey = voter.rollNo;
+          // Election-specific whitelist subcollection
+          const electionWlRef = doc(db, "elections", electionId, "whitelist", rollKey);
+          batch.set(electionWlRef, {
+            rollNo: rollKey,
+            name: voter.name,
+            email: voter.email,
+            section: cleanScope,
+            hasVoted: false,
+            updatedAt: serverTimestamp()
+          }, { merge: true });
+
+          // Global root whitelist fallback
+          const rootWlRef = doc(db, "whitelist", rollKey);
+          batch.set(rootWlRef, {
+            rollNo: rollKey,
+            name: voter.name,
+            email: voter.email,
+            section: cleanScope,
+            hasVoted: false,
+            claimed: false,
+            updatedAt: serverTimestamp()
+          }, { merge: true });
+        });
+
+        await batch.commit();
+      }
+    }
+
+    // 3. Commit Staged Candidates
+    if (candidatesList && candidatesList.length > 0) {
+      const candBatch = writeBatch(db);
+      candidatesList.forEach(cand => {
+        const safeRoll = cand.rollNo.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+        const candId = `${cand.category}_${safeRoll}`;
+        const candData = {
+          id: candId,
+          electionId: electionId,
+          name: cand.name,
+          category: cand.category,
+          rollNo: cand.rollNo,
+          manifesto: cand.manifesto,
+          photoUrl: cand.photoUrl,
+          voteCount: 0,
+          createdAt: serverTimestamp()
+        };
+
+        // Election-specific subcollection: elections/{electionId}/candidates/{candId}
+        const electionCandRef = doc(db, "elections", electionId, "candidates", candId);
+        candBatch.set(electionCandRef, candData, { merge: true });
+
+        // Root candidates collection
+        const rootCandRef = doc(db, "candidates", candId);
+        candBatch.set(rootCandRef, candData, { merge: true });
+      });
+
+      await candBatch.commit();
+    }
+
+    // Also update global election_meta config
+    const metaRef = doc(db, "election_meta", "config");
+    await setDoc(metaRef, {
+      activeElectionId: electionId,
+      title: title.trim(),
+      section: cleanScope,
+      status: "draft",
+      revealStage: 1,
+      votingMode: mode || "manual",
+      durationMinutes: Number(durationMinutes) || 60,
+      closesAt: null,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    showAlert(`Election '${title}' created successfully in Draft with ${voters.length} whitelisted voters and ${candidatesList.length} nominees!`, "success");
+    return electionId;
+
+  } catch (err) {
+    console.error("Unified election creation error:", err);
+    showAlert(`Failed to create election: ${err.message}`, "error");
+    throw err;
+  }
+}
+
+// Backwards-compatible standalone wrappers
+export async function createElection(title, department, section, mode = "manual", durationMinutes = 60) {
+  return createUnifiedElection({
+    title,
+    section: section || "Section A",
+    mode,
+    durationMinutes,
+    whitelistText: "",
+    candidatesList: []
+  });
+}
+
 export async function uploadWhitelist(electionId = "section-a", rawText) {
   const voters = parseWhitelistInput(rawText);
   if (!voters || voters.length === 0) {
@@ -264,122 +445,78 @@ export async function uploadWhitelist(electionId = "section-a", rawText) {
     return 0;
   }
 
-  try {
-    if (processWhitelistBtn) processWhitelistBtn.disabled = true;
-    if (whitelistImportStatus) {
-      whitelistImportStatus.textContent = `Processing and committing ${voters.length} student records...`;
-      whitelistImportStatus.className = "import-status processing";
-    }
+  const CHUNK_SIZE = 400;
+  let committed = 0;
 
-    const CHUNK_SIZE = 400;
-    let committed = 0;
+  for (let i = 0; i < voters.length; i += CHUNK_SIZE) {
+    const chunk = voters.slice(i, i + CHUNK_SIZE);
+    const batch = writeBatch(db);
 
-    for (let i = 0; i < voters.length; i += CHUNK_SIZE) {
-      const chunk = voters.slice(i, i + CHUNK_SIZE);
-      const batch = writeBatch(db);
+    chunk.forEach(voter => {
+      const rollKey = voter.rollNo;
+      const electionWhitelistRef = doc(db, "elections", electionId, "whitelist", rollKey);
+      batch.set(electionWhitelistRef, {
+        rollNo: rollKey,
+        name: voter.name,
+        email: voter.email,
+        section: voter.section || "Section A",
+        hasVoted: false,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
 
-      chunk.forEach(voter => {
-        const rollKey = voter.rollNo;
+      const rootWhitelistRef = doc(db, "whitelist", rollKey);
+      batch.set(rootWhitelistRef, {
+        rollNo: rollKey,
+        name: voter.name,
+        email: voter.email,
+        section: voter.section || "Section A",
+        hasVoted: false,
+        claimed: false,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    });
 
-        // Subcollection: elections/{electionId}/whitelist/{studentId}
-        const electionWhitelistRef = doc(db, "elections", electionId, "whitelist", rollKey);
-        batch.set(electionWhitelistRef, {
-          rollNo: rollKey,
-          name: voter.name,
-          email: voter.email,
-          section: voter.section || "Section A",
-          hasVoted: false,
-          updatedAt: serverTimestamp()
-        }, { merge: true });
-
-        // Root whitelist compatibility: whitelist/{studentId}
-        const rootWhitelistRef = doc(db, "whitelist", rollKey);
-        batch.set(rootWhitelistRef, {
-          rollNo: rollKey,
-          name: voter.name,
-          email: voter.email,
-          section: voter.section || "Section A",
-          hasVoted: false,
-          claimed: false,
-          updatedAt: serverTimestamp()
-        }, { merge: true });
-      });
-
-      await batch.commit();
-      committed += chunk.length;
-
-      if (whitelistImportStatus) {
-        whitelistImportStatus.textContent = `Committed ${committed} / ${voters.length} whitelist records...`;
-      }
-    }
-
-    showAlert(`Successfully imported ${committed} whitelisted voters into ${electionId}!`, "success");
-    if (whitelistImportStatus) {
-      whitelistImportStatus.textContent = `✅ Successfully certified ${committed} student IDs.`;
-      whitelistImportStatus.className = "import-status success";
-    }
-
-    return committed;
-
-  } catch (error) {
-    console.error("Upload whitelist failure:", error);
-    showAlert(`Whitelist import failed: ${error.message}`, "error");
-    if (whitelistImportStatus) {
-      whitelistImportStatus.textContent = `❌ Import Error: ${error.message}`;
-      whitelistImportStatus.className = "import-status error";
-    }
-    throw error;
-  } finally {
-    if (processWhitelistBtn) processWhitelistBtn.disabled = false;
+    await batch.commit();
+    committed += chunk.length;
   }
-}
 
-// ============================================================================
-// 4. Candidate Registration & Management
-// ============================================================================
+  showAlert(`Successfully imported ${committed} whitelisted voters into ${electionId}!`, "success");
+  return committed;
+}
 
 export async function addCandidate(electionId = "section-a", { name, category, photoUrl, manifesto, rollNo }) {
   if (!name) throw new Error("Candidate name is required.");
   const safeRoll = (rollNo || name).trim().replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
   const candId = `${category}_${safeRoll}`;
 
-  try {
-    const candidateData = {
-      id: candId,
-      name: name.trim(),
-      category: category,
-      rollNo: (rollNo || "Certified").trim().toUpperCase(),
-      manifesto: manifesto || "Committed to representing student cohort interests.",
-      photoUrl: photoUrl || "",
-      voteCount: 0,
-      createdAt: serverTimestamp()
-    };
+  const candidateData = {
+    id: candId,
+    electionId: electionId,
+    name: name.trim(),
+    category: category,
+    rollNo: (rollNo || "Certified").trim().toUpperCase(),
+    manifesto: manifesto || "Committed to cohort student welfare and representation.",
+    photoUrl: photoUrl || "",
+    voteCount: 0,
+    createdAt: serverTimestamp()
+  };
 
-    // Subcollection: elections/{electionId}/candidates/{candidateId}
-    const electionCandRef = doc(db, "elections", electionId, "candidates", candId);
-    await setDoc(electionCandRef, candidateData, { merge: true });
+  const electionCandRef = doc(db, "elections", electionId, "candidates", candId);
+  await setDoc(electionCandRef, candidateData, { merge: true });
 
-    // Root candidates: candidates/{candidateId}
-    const rootCandRef = doc(db, "candidates", candId);
-    await setDoc(rootCandRef, candidateData, { merge: true });
+  const rootCandRef = doc(db, "candidates", candId);
+  await setDoc(rootCandRef, candidateData, { merge: true });
 
-    showAlert(`Candidate ${name} registered for ${category === "boy_cr" ? "Boy CR" : "Girl CR"}!`, "success");
-    loadAdminCandidates();
-    return candId;
-
-  } catch (err) {
-    console.error("Add candidate error:", err);
-    showAlert(`Failed to register candidate: ${err.message}`, "error");
-    throw err;
-  }
+  showAlert(`Candidate '${name}' registered for ${category === "boy_cr" ? "Boy CR" : "Girl CR"} in ${electionId}!`, "success");
+  return candId;
 }
 
 // ============================================================================
-// 5. Election Lifecycle Controls
-// Supports: "draft", "active", "ended", "published"
+// 5. Election Lifecycle Status Transitions per Election
 // ============================================================================
 
-export async function setElectionStatus(electionId = "section-a", status) {
+export async function setElectionStatus(electionId, status) {
+  if (!electionId) return;
   const validStates = ["draft", "active", "ended", "published", "ready", "concluded"];
   if (!validStates.includes(status)) {
     throw new Error(`Invalid election status: ${status}`);
@@ -422,23 +559,15 @@ export async function setElectionStatus(electionId = "section-a", status) {
 
     await setDoc(electionRef, updatePayload, { merge: true });
 
+    // Also sync global config if active election
     const metaRef = doc(db, "election_meta", "config");
     await setDoc(metaRef, updatePayload, { merge: true });
 
-    showAlert(`Election status transitioned to: ${status.toUpperCase()}`, "success");
-    highlightLifecycleButtons(status);
-
-    const statusLabel = document.getElementById("electionStatusLabel");
-    if (statusLabel) {
-      if (status === "active") statusLabel.textContent = "Election Active";
-      else if (status === "draft" || status === "ready") statusLabel.textContent = "Election in Draft";
-      else if (status === "ended" || status === "concluded") statusLabel.textContent = "Election Sealed";
-      else if (status === "published") statusLabel.textContent = "Results Published";
-    }
+    showAlert(`Election '${existingData.title || electionId}' transitioned to: ${status.toUpperCase()}`, "success");
 
   } catch (err) {
     console.error("Set election status error:", err);
-    showAlert(`Failed to set election status: ${err.message}`, "error");
+    showAlert(`Failed to set status: ${err.message}`, "error");
     throw err;
   }
 }
@@ -448,38 +577,10 @@ export async function updateRevealStage(stage) {
     const metaRef = doc(db, "election_meta", "config");
     await setDoc(metaRef, { revealStage: stage, updatedAt: serverTimestamp() }, { merge: true });
     showAlert(`Auditing Reveal set to Stage ${stage}`, "success");
-    if (stage === 2) {
-      highlightLifecycleButtons("published");
-    } else {
-      highlightLifecycleButtons("active");
-    }
   } catch (err) {
     showAlert(`Failed to update reveal stage: ${err.message}`, "error");
   }
 }
-
-function highlightLifecycleButtons(status) {
-  const btnMap = {
-    draft: lifecycleDraftBtn,
-    ready: lifecycleDraftBtn,
-    active: lifecycleActiveBtn,
-    ended: lifecycleConcludedBtn,
-    concluded: lifecycleConcludedBtn,
-    published: lifecyclePublishBtn
-  };
-
-  [lifecycleDraftBtn, lifecycleActiveBtn, lifecycleConcludedBtn, lifecyclePublishBtn].forEach(b => {
-    b?.classList.remove("active");
-  });
-
-  if (btnMap[status]) {
-    btnMap[status]?.classList.add("active");
-  }
-}
-
-// ============================================================================
-// 5B. Admin QoL: Archive, Delete & Management Ledger
-// ============================================================================
 
 export async function archiveElection(electionId) {
   try {
@@ -504,14 +605,118 @@ export async function deleteElection(electionId) {
 }
 
 // ============================================================================
-// 5C. Voter Audit & Roll Lookup with Emergency Reset
+// 6. Manage Election Modal (Manage Whitelist & Candidates per Election)
+// ============================================================================
+
+export async function openManageElectionModal(electionId) {
+  activeManageElectionId = electionId;
+  const modal = document.getElementById("manageElectionModal");
+  const titleEl = document.getElementById("manageModalElectionTitle");
+  const subEl = document.getElementById("manageModalElectionSub");
+  const wlCountEl = document.getElementById("manageModalWhitelistCount");
+
+  if (!modal) return;
+  modal.classList.remove("hidden");
+
+  try {
+    const snap = await getDoc(doc(db, "elections", electionId));
+    const data = snap.exists() ? snap.data() : {};
+    if (titleEl) titleEl.textContent = data.title || electionId;
+    if (subEl) subEl.textContent = `${data.section || 'General'} • ID: ${electionId}`;
+
+    // Get whitelist count
+    const wlSnap = await getDocs(collection(db, "elections", electionId, "whitelist"));
+    if (wlCountEl) wlCountEl.textContent = `${wlSnap.size} Whitelisted`;
+
+    // Load candidates for this election
+    loadModalElectionCandidates(electionId);
+  } catch (e) {
+    console.error("Open manage modal error:", e);
+  }
+}
+
+async function loadModalElectionCandidates(electionId) {
+  const boyList = document.getElementById("manageModalBoyCandList");
+  const girlList = document.getElementById("manageModalGirlCandList");
+  if (!boyList || !girlList) return;
+
+  boyList.innerHTML = `<span class="spinner"></span>`;
+  girlList.innerHTML = `<span class="spinner"></span>`;
+
+  try {
+    const candSnap = await getDocs(collection(db, "elections", electionId, "candidates"));
+    boyList.innerHTML = "";
+    girlList.innerHTML = "";
+
+    const boys = [];
+    const girls = [];
+
+    candSnap.forEach(d => {
+      const data = { id: d.id, ...d.data() };
+      if (data.category === "boy_cr") boys.push(data);
+      else if (data.category === "girl_cr") girls.push(data);
+    });
+
+    if (boys.length === 0) {
+      boyList.innerHTML = `<p class="text-muted" style="font-size:0.8rem; padding: 0.5rem 0;">No Boy CR candidates.</p>`;
+    } else {
+      boys.forEach(b => {
+        const row = document.createElement("div");
+        row.className = "staged-cand-item";
+        row.innerHTML = `
+          <div><strong>${b.name}</strong> <span class="mono" style="color:var(--neon-cyan);">(${b.rollNo})</span></div>
+          <button type="button" class="btn btn-danger btn-sm" data-id="${b.id}">&times; Remove</button>
+        `;
+        row.querySelector("button").addEventListener("click", () => deleteCandidate(b.id, electionId));
+        boyList.appendChild(row);
+      });
+    }
+
+    if (girls.length === 0) {
+      girlList.innerHTML = `<p class="text-muted" style="font-size:0.8rem; padding: 0.5rem 0;">No Girl CR candidates.</p>`;
+    } else {
+      girls.forEach(g => {
+        const row = document.createElement("div");
+        row.className = "staged-cand-item";
+        row.innerHTML = `
+          <div><strong>${g.name}</strong> <span class="mono" style="color:var(--neon-magenta);">(${g.rollNo})</span></div>
+          <button type="button" class="btn btn-danger btn-sm" data-id="${g.id}">&times; Remove</button>
+        `;
+        row.querySelector("button").addEventListener("click", () => deleteCandidate(g.id, electionId));
+        girlList.appendChild(row);
+      });
+    }
+
+  } catch (err) {
+    console.error("Load modal candidates error:", err);
+    boyList.innerHTML = `<div class="error-msg">Error loading candidates</div>`;
+    girlList.innerHTML = `<div class="error-msg">Error loading candidates</div>`;
+  }
+}
+
+export async function deleteCandidate(candidateId, electionId = activeManageElectionId || "section-a") {
+  if (!confirm(`Are you sure you want to remove candidate (${candidateId})?`)) return;
+  try {
+    await deleteDoc(doc(db, "elections", electionId, "candidates", candidateId)).catch(() => {});
+    await deleteDoc(doc(db, "candidates", candidateId)).catch(() => {});
+    showAlert("Candidate deleted.", "info");
+    if (activeManageElectionId) {
+      loadModalElectionCandidates(activeManageElectionId);
+    }
+  } catch (error) {
+    showAlert(`Delete failed: ${error.message}`, "error");
+  }
+}
+
+// ============================================================================
+// 7. Voter Audit & Roll Lookup with Target Election Selector
 // ============================================================================
 
 let currentLookedUpRoll = null;
-let currentLookedUpElectionId = "section-a";
+let currentLookedUpElectionId = null;
 
-export async function lookupVoter(rollNo, electionId = "section-a") {
-  const inputEl = document.getElementById("voterLookupInput") || document.getElementById("voterLookupRollInput");
+export async function lookupVoter(rollNo, targetElectionId = "") {
+  const inputEl = document.getElementById("voterLookupInput");
   const cleanRoll = (rollNo || inputEl?.value || "").trim().toUpperCase();
   if (!cleanRoll) {
     showAlert("Please enter a valid Student Roll Number to verify.", "error");
@@ -527,49 +732,65 @@ export async function lookupVoter(rollNo, electionId = "section-a") {
 
   try {
     currentLookedUpRoll = cleanRoll;
-    currentLookedUpElectionId = electionId;
+    currentLookedUpElectionId = targetElectionId || null;
 
-    // Check election whitelist
-    const electionVoterRef = doc(db, "elections", electionId, "whitelist", cleanRoll);
-    const electionVoterSnap = await getDoc(electionVoterRef);
+    let voterData = null;
+    let foundElectionTitle = "";
 
-    // Check root whitelist
-    const rootVoterRef = doc(db, "whitelist", cleanRoll);
-    const rootVoterSnap = await getDoc(rootVoterRef);
+    // 1. If specific election selected, query that election's whitelist subcollection
+    if (targetElectionId) {
+      const electionVoterRef = doc(db, "elections", targetElectionId, "whitelist", cleanRoll);
+      const snap = await getDoc(electionVoterRef);
+      if (snap.exists()) {
+        voterData = snap.data();
+        const elSnap = await getDoc(doc(db, "elections", targetElectionId));
+        foundElectionTitle = elSnap.exists() ? elSnap.data().title : targetElectionId;
+      }
+    }
 
-    if (!electionVoterSnap.exists() && !rootVoterSnap.exists()) {
+    // 2. Fallback: check global root whitelist
+    if (!voterData) {
+      const rootVoterRef = doc(db, "whitelist", cleanRoll);
+      const rootSnap = await getDoc(rootVoterRef);
+      if (rootSnap.exists()) {
+        voterData = rootSnap.data();
+        foundElectionTitle = voterData.section ? `${voterData.section} (Global Registry)` : "General Registry";
+      }
+    }
+
+    if (!voterData) {
       resultContainer.innerHTML = `
         <span class="voter-status-badge not-whitelisted">Not Whitelisted</span>
         <p style="margin: 0.35rem 0 0; color: var(--text-secondary); font-size: 0.88rem;">
-          Roll Number <strong class="mono" style="color:var(--neon-rose);">${cleanRoll}</strong> is not certified on the election whitelist.
+          Roll Number <strong class="mono" style="color:var(--neon-rose);">${cleanRoll}</strong> is not certified on the election whitelist ${targetElectionId ? `for election cohort '${targetElectionId}'` : ''}.
         </p>
       `;
       if (emergencyResetBtn) emergencyResetBtn.classList.add("hidden");
       return;
     }
 
-    const data = electionVoterSnap.exists() ? electionVoterSnap.data() : rootVoterSnap.data();
-    const hasVoted = data.hasVoted === true;
+    const hasVoted = voterData.hasVoted === true;
 
     if (!hasVoted) {
       resultContainer.innerHTML = `
         <span class="voter-status-badge pending">Whitelisted • Pending Vote</span>
         <div style="font-size: 0.88rem; color: var(--text-secondary); margin-top: 0.35rem; line-height: 1.5;">
-          <div>Student Name: <strong style="color:var(--text-primary);">${data.name || 'Certified Voter'}</strong></div>
-          <div>Roll Number: <span class="mono" style="color:var(--neon-cyan);">${data.rollNo || cleanRoll}</span></div>
-          <div>Cohort: ${data.section || 'Section A'}</div>
-          <div style="color: var(--neon-cyan); margin-top: 0.25rem;">● Certified eligible. Ballot not yet cast.</div>
+          <div>Student Name: <strong style="color:var(--text-primary);">${voterData.name || 'Certified Voter'}</strong></div>
+          <div>Roll Number: <span class="mono" style="color:var(--neon-cyan); font-weight:700;">${voterData.rollNo || cleanRoll}</span></div>
+          <div>Cohort / Election: <span style="color:var(--text-primary);">${foundElectionTitle || voterData.section || 'General'}</span></div>
+          <div style="color: var(--neon-cyan); margin-top: 0.25rem;">● Certified eligible. Official ballot has not yet been cast.</div>
         </div>
       `;
       if (emergencyResetBtn) emergencyResetBtn.classList.add("hidden");
     } else {
-      const receiptToken = data.receiptHash || "0xMIRAI-SEALED-BALLOT";
-      const votedTime = data.updatedAt ? new Date(data.updatedAt.toDate ? data.updatedAt.toDate() : data.updatedAt).toLocaleString() : "Audit Recorded";
+      const receiptToken = voterData.receiptHash || "0xMIRAI-SEALED-BALLOT";
+      const votedTime = voterData.updatedAt ? new Date(voterData.updatedAt.toDate ? voterData.updatedAt.toDate() : voterData.updatedAt).toLocaleString() : "Audit Recorded";
       resultContainer.innerHTML = `
         <span class="voter-status-badge voted">Whitelisted • Voted</span>
         <div style="font-size: 0.88rem; color: var(--text-secondary); margin-top: 0.35rem; line-height: 1.5;">
-          <div>Student Name: <strong style="color:var(--text-primary);">${data.name || 'Certified Voter'}</strong></div>
-          <div>Roll Number: <span class="mono" style="color:var(--neon-emerald); font-weight:700;">${data.rollNo || cleanRoll}</span></div>
+          <div>Student Name: <strong style="color:var(--text-primary);">${voterData.name || 'Certified Voter'}</strong></div>
+          <div>Roll Number: <span class="mono" style="color:var(--neon-emerald); font-weight:700;">${voterData.rollNo || cleanRoll}</span></div>
+          <div>Cohort / Election: <span style="color:var(--text-primary);">${foundElectionTitle || voterData.section || 'General'}</span></div>
           <div>Ballot Receipt: <span class="mono highlight-cyan" style="word-break: break-all;">${receiptToken}</span></div>
           <div>Timestamp: <span>${votedTime}</span></div>
         </div>
@@ -583,7 +804,7 @@ export async function lookupVoter(rollNo, electionId = "section-a") {
   }
 }
 
-export async function emergencyResetVoter(rollNo, electionId = "section-a") {
+export async function emergencyResetVoter(rollNo = currentLookedUpRoll, electionId = currentLookedUpElectionId) {
   const cleanRoll = (rollNo || currentLookedUpRoll || "").trim().toUpperCase();
   if (!cleanRoll) return;
 
@@ -595,12 +816,14 @@ export async function emergencyResetVoter(rollNo, electionId = "section-a") {
   try {
     const batch = writeBatch(db);
 
-    const electionVoterRef = doc(db, "elections", electionId, "whitelist", cleanRoll);
-    batch.update(electionVoterRef, {
-      hasVoted: false,
-      receiptHash: null,
-      updatedAt: serverTimestamp()
-    });
+    if (electionId) {
+      const electionVoterRef = doc(db, "elections", electionId, "whitelist", cleanRoll);
+      batch.update(electionVoterRef, {
+        hasVoted: false,
+        receiptHash: null,
+        updatedAt: serverTimestamp()
+      });
+    }
 
     const rootVoterRef = doc(db, "whitelist", cleanRoll);
     batch.update(rootVoterRef, {
@@ -621,16 +844,32 @@ export async function emergencyResetVoter(rollNo, electionId = "section-a") {
 }
 
 // ============================================================================
-// 5D. Real-time Admin Elections Ledger
+// 8. Real-Time Admin Elections Table & Dynamic Dropdown Populator
 // ============================================================================
 
 export function initAdminElectionsTable() {
   const tbody = document.getElementById("adminElectionsTableBody");
+  const electionSelect = document.getElementById("voterLookupElectionSelect");
   if (!tbody) return;
 
   const electionsCol = collection(db, "elections");
   onSnapshot(electionsCol, (snapshot) => {
     tbody.innerHTML = "";
+
+    // Update Voter Audit Election Dropdown
+    if (electionSelect) {
+      const curVal = electionSelect.value;
+      electionSelect.innerHTML = `<option value="">All Elections (Global Lookup)</option>`;
+      snapshot.forEach(docSnap => {
+        const d = docSnap.data();
+        const opt = document.createElement("option");
+        opt.value = docSnap.id;
+        opt.textContent = `${d.title || docSnap.id} (${d.section || 'General'})`;
+        electionSelect.appendChild(opt);
+      });
+      electionSelect.value = curVal;
+    }
+
     if (snapshot.empty) {
       tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 2rem; color: var(--text-muted);">No elections registered yet. Create one above!</td></tr>`;
       return;
@@ -644,7 +883,26 @@ export function initAdminElectionsTable() {
         ? `<span class="mode-badge timed">⏱️ ${data.durationMinutes || 60}m Timed</span>`
         : `<span class="mode-badge manual">♾️ Manual</span>`;
 
-      const statusBadge = `<span class="badge ${data.status === 'active' ? 'badge-primary' : data.status === 'published' ? 'badge-winner' : 'badge-secondary'}">${(data.status || 'draft').toUpperCase()}</span>`;
+      const status = (data.status || "draft").toLowerCase();
+      let statusBadge = `<span class="badge badge-secondary">${status.toUpperCase()}</span>`;
+      if (status === "active") statusBadge = `<span class="badge badge-primary">ACTIVE</span>`;
+      else if (status === "concluded" || status === "ended") statusBadge = `<span class="badge badge-secondary" style="border-color:var(--neon-amber); color:var(--neon-amber);">SEALED</span>`;
+      else if (status === "published") statusBadge = `<span class="badge badge-winner">PUBLISHED</span>`;
+
+      // Inline action buttons tailored per row
+      let lifecycleBtn = "";
+      if (status === "draft" || status === "ready") {
+        lifecycleBtn = `<button class="btn btn-cyber-primary btn-sm admin-act-btn" data-act="start" data-id="${data.id}">▶ Start Voting</button>`;
+      } else if (status === "active") {
+        lifecycleBtn = `<button class="btn btn-warning btn-sm admin-act-btn" data-act="end" data-id="${data.id}">⏹ End &amp; Seal</button>`;
+      } else if (status === "ended" || status === "concluded") {
+        lifecycleBtn = `
+          <button class="btn btn-cyber-primary btn-sm admin-act-btn" data-act="publish" data-id="${data.id}">📢 Publish Results</button>
+          <button class="btn btn-cyber-outline btn-sm admin-act-btn" data-act="reopen" data-id="${data.id}">↩ Set Draft</button>
+        `;
+      } else if (status === "published") {
+        lifecycleBtn = `<button class="btn btn-cyber-outline btn-sm admin-act-btn" data-act="archive" data-id="${data.id}">📦 Archive</button>`;
+      }
 
       row.innerHTML = `
         <td><strong>${data.title || data.id}</strong><br><small class="mono text-muted">${data.id}</small></td>
@@ -652,11 +910,10 @@ export function initAdminElectionsTable() {
         <td>${modeBadge}</td>
         <td>${statusBadge}</td>
         <td>
-          <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
-            ${data.status !== 'active' ? `<button class="btn btn-cyber-primary btn-sm admin-act-btn" data-act="start" data-id="${data.id}">Start</button>` : `<button class="btn btn-cyber-outline btn-sm admin-act-btn" data-act="end" data-id="${data.id}">End</button>`}
-            ${data.status === 'concluded' || data.status === 'ended' ? `<button class="btn btn-cyber-primary btn-sm admin-act-btn" data-act="publish" data-id="${data.id}">Publish</button>` : ''}
-            <button class="btn btn-cyber-outline btn-sm admin-act-btn" data-act="archive" data-id="${data.id}">Archive</button>
-            <button class="btn btn-danger btn-sm admin-act-btn" data-act="delete" data-id="${data.id}">&times;</button>
+          <div style="display:flex; gap:0.4rem; flex-wrap:wrap; align-items:center;">
+            ${lifecycleBtn}
+            <button class="btn btn-cyber-outline btn-sm admin-act-btn" data-act="manage" data-id="${data.id}" title="Manage Whitelist & Nominees">⚙️ Manage</button>
+            <button class="btn btn-danger btn-sm admin-act-btn" data-act="delete" data-id="${data.id}" title="Delete Election">&times; Delete</button>
           </div>
         </td>
       `;
@@ -668,7 +925,9 @@ export function initAdminElectionsTable() {
           if (act === "start") setElectionStatus(id, "active");
           else if (act === "end") setElectionStatus(id, "ended");
           else if (act === "publish") setElectionStatus(id, "published");
+          else if (act === "reopen") setElectionStatus(id, "draft");
           else if (act === "archive") archiveElection(id);
+          else if (act === "manage") openManageElectionModal(id);
           else if (act === "delete") deleteElection(id);
         });
       });
@@ -680,90 +939,8 @@ export function initAdminElectionsTable() {
   });
 }
 
-export async function deleteCandidate(candidateId, electionId = "section-a") {
-  if (!confirm(`Are you sure you want to remove candidate (${candidateId})?`)) return;
-  try {
-    await deleteDoc(doc(db, "elections", electionId, "candidates", candidateId)).catch(() => {});
-    await deleteDoc(doc(db, "candidates", candidateId));
-    showAlert("Candidate deleted.", "info");
-    loadAdminCandidates();
-  } catch (error) {
-    showAlert(`Delete failed: ${error.message}`, "error");
-  }
-}
-
-async function loadAdminCandidates(electionId = "section-a") {
-  try {
-    const snapshot = await getDocs(collection(db, "candidates"));
-    if (adminBoyCandidateList) adminBoyCandidateList.innerHTML = "";
-    if (adminGirlCandidateList) adminGirlCandidateList.innerHTML = "";
-
-    snapshot.forEach(docSnap => {
-      const data = { id: docSnap.id, ...docSnap.data() };
-      const row = document.createElement("div");
-      row.className = "admin-candidate-row";
-      row.innerHTML = `
-        <div>
-          <strong>${data.name}</strong> 
-          <span class="mono">(${data.rollNo || data.id})</span>
-        </div>
-        <button class="btn btn-danger btn-sm" data-id="${data.id}">&times; Remove</button>
-      `;
-
-      row.querySelector("button").addEventListener("click", () => deleteCandidate(data.id, electionId));
-
-      if (data.category === "boy_cr" && adminBoyCandidateList) {
-        adminBoyCandidateList.appendChild(row);
-      } else if (data.category === "girl_cr" && adminGirlCandidateList) {
-        adminGirlCandidateList.appendChild(row);
-      }
-    });
-  } catch (err) {
-    console.error("Load admin candidates error:", err);
-  }
-}
-
-async function purgeElectionVotes() {
-  const code = prompt("CRITICAL ACTION: Type 'RESET-MIRAI' to reset all cast votes and whitelist vote flags:");
-  if (code !== "RESET-MIRAI") {
-    showAlert("Reset aborted.", "info");
-    return;
-  }
-
-  try {
-    showAlert("Purging vote records and resetting whitelist...", "info");
-
-    const whitelistSnap = await getDocs(collection(db, "whitelist"));
-    const batch = writeBatch(db);
-    whitelistSnap.forEach(d => {
-      batch.update(doc(db, "whitelist", d.id), {
-        hasVoted: false,
-        claimed: false,
-        receiptHash: null,
-        votedAt: null
-      });
-    });
-
-    const candSnap = await getDocs(collection(db, "candidates"));
-    candSnap.forEach(c => {
-      batch.update(doc(db, "candidates", c.id), { voteCount: 0 });
-    });
-
-    await batch.commit();
-
-    const votesSnap = await getDocs(collection(db, "votes"));
-    for (const v of votesSnap.docs) {
-      await deleteDoc(doc(db, "votes", v.id));
-    }
-
-    showAlert("Election ledger successfully reset to Zero baseline.", "success");
-  } catch (error) {
-    showAlert(`Reset failed: ${error.message}`, "error");
-  }
-}
-
 // ============================================================================
-// 6. Setup Event Listeners
+// 9. Setup Event Listeners
 // ============================================================================
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -781,83 +958,228 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Admin Logout Button in Dashboard
-  const adminLogoutBtn = document.getElementById("adminLogoutBtn");
-  if (adminLogoutBtn) {
-    adminLogoutBtn.addEventListener("click", logoutAdmin);
-  }
-
-  // Batch Whitelist Processing Button
-  if (processWhitelistBtn && whitelistBatchTextarea) {
-    processWhitelistBtn.addEventListener("click", () => {
-      const raw = whitelistBatchTextarea.value.trim();
-      if (!raw) {
-        showAlert("Please paste student IDs or CSV roster into the box.", "error");
-        return;
-      }
-      uploadWhitelist("section-a", raw);
+  // Admin Toggle Button
+  const adminToggleBtn = document.getElementById("adminToggleBtn");
+  if (adminToggleBtn) {
+    adminToggleBtn.addEventListener("click", () => {
+      const modal = document.getElementById("adminLoginModal");
+      if (modal) modal.classList.remove("hidden");
     });
   }
 
-  // File Drop Zone for CSV / JSON
-  if (whitelistDropZone && whitelistFileInput) {
-    whitelistDropZone.addEventListener("click", () => whitelistFileInput.click());
-    whitelistFileInput.addEventListener("change", (e) => {
+  // Close Admin Login Modal
+  const closeAdminLoginModal = document.getElementById("closeAdminLoginModal");
+  if (closeAdminLoginModal) {
+    closeAdminLoginModal.addEventListener("click", () => {
+      const modal = document.getElementById("adminLoginModal");
+      if (modal) modal.classList.add("hidden");
+    });
+  }
+
+  // Scope selection change: reveal custom scope input if "custom" selected
+  const scopeSelect = document.getElementById("unifiedElectionScope");
+  const customScopeGroup = document.getElementById("unifiedCustomScopeGroup");
+  if (scopeSelect && customScopeGroup) {
+    scopeSelect.addEventListener("change", (e) => {
+      if (e.target.value === "custom") {
+        customScopeGroup.classList.remove("hidden");
+      } else {
+        customScopeGroup.classList.add("hidden");
+      }
+    });
+  }
+
+  // Voting duration mode change: reveal minutes input if "timed"
+  const modeSelect = document.getElementById("unifiedElectionMode");
+  const durationGroup = document.getElementById("unifiedDurationGroup");
+  if (modeSelect && durationGroup) {
+    modeSelect.addEventListener("change", (e) => {
+      if (e.target.value === "timed") {
+        durationGroup.classList.remove("hidden");
+      } else {
+        durationGroup.classList.add("hidden");
+      }
+    });
+  }
+
+  // Whitelist live counter
+  const wlTextarea = document.getElementById("unifiedWhitelistTextarea");
+  const wlCountBadge = document.getElementById("unifiedWhitelistCountBadge");
+  if (wlTextarea && wlCountBadge) {
+    const updateCount = () => {
+      const parsed = parseWhitelistInput(wlTextarea.value);
+      wlCountBadge.textContent = `${parsed.length} Roll Numbers Staged`;
+      wlCountBadge.className = parsed.length > 0 ? "badge badge-primary ml-auto" : "badge badge-secondary ml-auto";
+    };
+    wlTextarea.addEventListener("input", updateCount);
+  }
+
+  // File Drop Zone for CSV / JSON in Unified Creator
+  const dropZone = document.getElementById("unifiedWhitelistDropZone");
+  const fileInput = document.getElementById("unifiedWhitelistFileInput");
+  if (dropZone && fileInput && wlTextarea) {
+    dropZone.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", (e) => {
       const file = e.target.files[0];
       if (!file) return;
 
       const reader = new FileReader();
       reader.onload = (evt) => {
         const text = evt.target.result;
-        uploadWhitelist("section-a", text);
+        wlTextarea.value = text;
+        const parsed = parseWhitelistInput(text);
+        if (wlCountBadge) {
+          wlCountBadge.textContent = `${parsed.length} Roll Numbers Staged`;
+          wlCountBadge.className = parsed.length > 0 ? "badge badge-primary ml-auto" : "badge badge-secondary ml-auto";
+        }
+        showAlert(`Loaded ${parsed.length} roll numbers from ${file.name}.`, "success");
       };
       reader.readAsText(file);
     });
   }
 
-  // Create Election Form
-  const createElectionForm = document.getElementById("createElectionForm");
-  const newElectionMode = document.getElementById("newElectionMode");
-  const electionDurationGroup = document.getElementById("electionDurationGroup");
-
-  if (newElectionMode && electionDurationGroup) {
-    newElectionMode.addEventListener("change", (e) => {
-      if (e.target.value === "timed") {
-        electionDurationGroup.classList.remove("hidden");
-      } else {
-        electionDurationGroup.classList.add("hidden");
-      }
-    });
+  // Add Nominee to Staging Button
+  const stageCandBtn = document.getElementById("stageCandidateBtn");
+  if (stageCandBtn) {
+    stageCandBtn.addEventListener("click", addStagedCandidate);
   }
 
-  if (createElectionForm) {
-    createElectionForm.addEventListener("submit", async (e) => {
+  // Unified Form Submission
+  const unifiedForm = document.getElementById("unifiedElectionForm");
+  if (unifiedForm) {
+    unifiedForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const title = document.getElementById("newElectionTitle")?.value.trim();
-      const section = document.getElementById("newElectionSection")?.value.trim();
-      const mode = document.getElementById("newElectionMode")?.value || "manual";
-      const duration = document.getElementById("newElectionDuration")?.value || 60;
+      const title = document.getElementById("unifiedElectionTitle")?.value.trim();
+      let scope = scopeSelect ? scopeSelect.value : "Section A";
+      if (scope === "custom") {
+        const customInput = document.getElementById("unifiedCustomScopeInput")?.value.trim();
+        scope = customInput || "Custom Cohort";
+      }
+      const mode = modeSelect ? modeSelect.value : "manual";
+      const duration = document.getElementById("unifiedDurationMinutes")?.value || 60;
+      const wlText = wlTextarea ? wlTextarea.value.trim() : "";
 
       if (!title) {
         showAlert("Election title is required.", "error");
         return;
       }
 
-      await createElection(title, "Mirai School of Technology", section, mode, duration);
-      createElectionForm.reset();
-      if (electionDurationGroup) electionDurationGroup.classList.add("hidden");
+      const submitBtn = document.getElementById("createUnifiedElectionBtn");
+      if (submitBtn) submitBtn.disabled = true;
+
+      try {
+        await createUnifiedElection({
+          title,
+          section: scope,
+          mode,
+          durationMinutes: duration,
+          whitelistText: wlText,
+          candidatesList: stagedCandidates
+        });
+
+        // Reset form and staged candidates
+        unifiedForm.reset();
+        stagedCandidates = [];
+        renderStagedCandidates();
+        if (wlCountBadge) {
+          wlCountBadge.textContent = "0 Roll Numbers Staged";
+          wlCountBadge.className = "badge badge-secondary ml-auto";
+        }
+        if (customScopeGroup) customScopeGroup.classList.add("hidden");
+        if (durationGroup) durationGroup.classList.add("hidden");
+
+      } catch (err) {
+        console.error("Creation error:", err);
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
+      }
     });
   }
 
-  // Voter Audit & Lookup
+  // Manage Election Modal Controls
+  const closeManageModalBtn = document.getElementById("closeManageElectionModalBtn");
+  const manageModalCloseBtn = document.getElementById("manageModalCloseBtn");
+  const manageModal = document.getElementById("manageElectionModal");
+  if (closeManageModalBtn && manageModal) {
+    closeManageModalBtn.addEventListener("click", () => manageModal.classList.add("hidden"));
+  }
+  if (manageModalCloseBtn && manageModal) {
+    manageModalCloseBtn.addEventListener("click", () => manageModal.classList.add("hidden"));
+  }
+
+  // Append Whitelist inside Modal
+  const modalAppendWlBtn = document.getElementById("manageModalAppendWhitelistBtn");
+  const modalWlInput = document.getElementById("manageModalWhitelistInput");
+  if (modalAppendWlBtn && modalWlInput) {
+    modalAppendWlBtn.addEventListener("click", async () => {
+      if (!activeManageElectionId) return;
+      const raw = modalWlInput.value.trim();
+      if (!raw) {
+        showAlert("Please paste student IDs to append.", "error");
+        return;
+      }
+
+      await uploadWhitelist(activeManageElectionId, raw);
+      modalWlInput.value = "";
+      const wlSnap = await getDocs(collection(db, "elections", activeManageElectionId, "whitelist"));
+      const wlCountEl = document.getElementById("manageModalWhitelistCount");
+      if (wlCountEl) wlCountEl.textContent = `${wlSnap.size} Whitelisted`;
+    });
+  }
+
+  // Add Candidate inside Modal
+  const modalAddCandBtn = document.getElementById("manageModalAddCandBtn");
+  if (modalAddCandBtn) {
+    modalAddCandBtn.addEventListener("click", async () => {
+      if (!activeManageElectionId) return;
+      const cat = document.getElementById("manageCandCategory")?.value;
+      const name = document.getElementById("manageCandName")?.value.trim();
+      const roll = document.getElementById("manageCandRoll")?.value.trim();
+      const manifesto = document.getElementById("manageCandManifesto")?.value.trim();
+      const photo = document.getElementById("manageCandPhoto")?.value.trim();
+
+      if (!name) {
+        showAlert("Candidate name is required.", "error");
+        return;
+      }
+      if (!roll) {
+        showAlert("Roll number is required.", "error");
+        return;
+      }
+
+      await addCandidate(activeManageElectionId, {
+        name,
+        category: cat,
+        rollNo: roll,
+        manifesto,
+        photoUrl: photo
+      });
+
+      // Clear modal inputs
+      const nEl = document.getElementById("manageCandName");
+      const rEl = document.getElementById("manageCandRoll");
+      const mEl = document.getElementById("manageCandManifesto");
+      const pEl = document.getElementById("manageCandPhoto");
+      if (nEl) nEl.value = "";
+      if (rEl) rEl.value = "";
+      if (mEl) mEl.value = "";
+      if (pEl) pEl.value = "";
+
+      loadModalElectionCandidates(activeManageElectionId);
+    });
+  }
+
+  // Voter Audit & Lookup with Target Election
   const voterLookupBtn = document.getElementById("voterLookupBtn");
-  const voterLookupInput = document.getElementById("voterLookupInput") || document.getElementById("voterLookupRollInput");
+  const voterLookupInput = document.getElementById("voterLookupInput");
+  const voterLookupElectionSelect = document.getElementById("voterLookupElectionSelect");
   const emergencyResetVoterBtn = document.getElementById("emergencyResetVoterBtn");
 
   if (voterLookupBtn && voterLookupInput) {
     voterLookupBtn.addEventListener("click", () => {
       const roll = voterLookupInput.value.trim();
-      lookupVoter(roll);
+      const targetElection = voterLookupElectionSelect ? voterLookupElectionSelect.value : "";
+      lookupVoter(roll, targetElection);
     });
     voterLookupInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
@@ -905,42 +1227,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Initialize Admin Elections Table
+  // Initialize Admin Elections Table and dynamic dropdown
   initAdminElectionsTable();
-
-  // Candidate Registry Form
-  if (adminCandidateRegistryForm) {
-    adminCandidateRegistryForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const cat = document.getElementById("adminCandCategory").value;
-      const name = document.getElementById("adminCandName").value.trim();
-      const roll = document.getElementById("adminCandRoll").value.trim();
-      const manifesto = document.getElementById("adminCandManifesto").value.trim();
-      const photo = document.getElementById("adminCandPhoto").value.trim();
-
-      await addCandidate("section-a", {
-        name: name,
-        category: cat,
-        rollNo: roll,
-        manifesto: manifesto,
-        photoUrl: photo
-      });
-
-      adminCandidateRegistryForm.reset();
-    });
-  }
-
-  // Lifecycle state transition buttons
-  if (lifecycleDraftBtn) lifecycleDraftBtn.addEventListener("click", () => setElectionStatus("section-a", "draft"));
-  if (lifecycleActiveBtn) lifecycleActiveBtn.addEventListener("click", () => setElectionStatus("section-a", "active"));
-  if (lifecycleConcludedBtn) lifecycleConcludedBtn.addEventListener("click", () => setElectionStatus("section-a", "ended"));
-  if (lifecyclePublishBtn) lifecyclePublishBtn.addEventListener("click", () => setElectionStatus("section-a", "published"));
-
-  if (stage1Btn) stage1Btn.addEventListener("click", () => updateRevealStage(1));
-  if (purgeElectionDataBtn) purgeElectionDataBtn.addEventListener("click", purgeElectionVotes);
-
-  // Tab activation listener
-  window.addEventListener("adminTabOpened", () => {
-    loadAdminCandidates();
-  });
 });
