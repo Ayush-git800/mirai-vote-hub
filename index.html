@@ -118,11 +118,12 @@
         <div class="auth-card">
           <div class="auth-card-header">
             <div class="auth-badge">Secure Ballot Access</div>
-            <h2>Student Identity Verification</h2>
-            <p>Enter your official university Roll Number or Student ID to claim your decoupled digital ballot.</p>
+            <h2 id="authCardTitle">Student Identity Verification</h2>
+            <p id="authCardSubtitle">Enter your official university Roll Number or Student ID to access your digital ballot.</p>
           </div>
 
-          <form id="studentClaimForm" class="auth-form">
+          <!-- STEP 1: Roll Number Entry -->
+          <form id="studentRollForm" class="auth-form">
             <div class="form-group">
               <label for="studentRollInput">University Roll Number / Student ID</label>
               <div class="input-prefix-wrapper">
@@ -138,21 +139,88 @@
               <small class="form-hint">Must match your verified institutional record in the Cohort Whitelist.</small>
             </div>
 
+            <button type="submit" id="checkRollBtn" class="btn btn-cyber-primary btn-block">
+              <span class="btn-text">Verify Roll Number &amp; Continue →</span>
+              <span class="spinner hidden" id="checkRollSpinner"></span>
+            </button>
+          </form>
+
+          <!-- STEP 2A: Create Passkey / PIN Mode (First-Time Student) -->
+          <form id="createPasskeyForm" class="auth-form hidden">
+            <div class="student-identified-pill" style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,240,255,0.08); border:1px solid rgba(0,240,255,0.25); border-radius:10px; padding:10px 14px; margin-bottom:14px;">
+              <div>
+                <span style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; display:block;">Verified Roll Number</span>
+                <strong id="identifiedRollCreate" class="mono highlight-cyan" style="font-size:1.05rem;">--</strong>
+              </div>
+              <button type="button" class="btn-change-roll btn-link" style="background:none; border:none; color:var(--text-secondary); font-size:0.8rem; cursor:pointer; text-decoration:underline;">← Change</button>
+            </div>
+
             <div class="form-group">
-              <label for="studentPassInput">Access Passkey / PIN</label>
+              <label for="newPassInput">Create Passkey / PIN</label>
               <div class="input-prefix-wrapper">
                 <span class="input-icon">🔑</span>
                 <input 
                   type="password" 
-                  id="studentPassInput" 
-                  placeholder="Provided security passkey" 
+                  id="newPassInput" 
+                  placeholder="Create a 4+ digit Passkey or PIN" 
+                  minlength="4"
+                  autocomplete="new-password"
+                  required
+                >
+              </div>
+              <small class="form-hint">You will use this passkey to securely confirm and seal your ballot.</small>
+            </div>
+
+            <div class="form-group">
+              <label for="confirmPassInput">Confirm Passkey / PIN</label>
+              <div class="input-prefix-wrapper">
+                <span class="input-icon">🔒</span>
+                <input 
+                  type="password" 
+                  id="confirmPassInput" 
+                  placeholder="Re-enter passkey to confirm" 
+                  minlength="4"
+                  autocomplete="new-password"
                   required
                 >
               </div>
             </div>
 
+            <button type="submit" id="setPasskeyBtn" class="btn btn-cyber-primary btn-block">
+              <span class="btn-text">Set Passkey &amp; Enter Ballot Booth</span>
+              <span class="spinner hidden" id="setPasskeySpinner"></span>
+            </button>
+          </form>
+
+          <!-- STEP 2B: Enter Existing Passkey Mode (Returning Student) -->
+          <form id="verifyPasskeyForm" class="auth-form hidden">
+            <div class="student-identified-pill" style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,240,255,0.08); border:1px solid rgba(0,240,255,0.25); border-radius:10px; padding:10px 14px; margin-bottom:14px;">
+              <div>
+                <span style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; display:block;">Verified Roll Number</span>
+                <strong id="identifiedRollVerify" class="mono highlight-cyan" style="font-size:1.05rem;">--</strong>
+              </div>
+              <button type="button" class="btn-change-roll btn-link" style="background:none; border:none; color:var(--text-secondary); font-size:0.8rem; cursor:pointer; text-decoration:underline;">← Change</button>
+            </div>
+
+            <div class="form-group">
+              <label for="studentPassInput">Enter Your Voting Passkey</label>
+              <div class="input-prefix-wrapper">
+                <span class="input-icon">🔑</span>
+                <input 
+                  type="password" 
+                  id="studentPassInput" 
+                  placeholder="Enter your security passkey / PIN" 
+                  autocomplete="current-password"
+                  required
+                >
+              </div>
+              <small class="form-hint" style="color:var(--text-muted); margin-top:6px; display:block;">
+                Forgot passkey? Contact the Election Admin to reset your credential.
+              </small>
+            </div>
+
             <button type="submit" id="claimBallotBtn" class="btn btn-cyber-primary btn-block">
-              <span class="btn-text">Verify Whitelist &amp; Unlock Ballot</span>
+              <span class="btn-text">Verify &amp; Enter Ballot Booth</span>
               <span class="spinner hidden" id="claimSpinner"></span>
             </button>
           </form>
@@ -536,9 +604,14 @@
                   </div>
                 </div>
                 <div id="voterLookupResult" class="voter-lookup-result hidden"></div>
-                <button id="emergencyResetVoterBtn" class="btn btn-danger btn-sm mt-3 hidden" type="button">
-                  ⚠️ Emergency Reset Voter Ballot
-                </button>
+                <div class="voter-lookup-actions mt-3" style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                  <button id="emergencyResetVoterBtn" class="btn btn-danger btn-sm hidden" type="button">
+                    ⚠️ Reset Ballot Status
+                  </button>
+                  <button id="adminResetPasskeyBtn" class="btn btn-warning btn-sm hidden" type="button">
+                    🔑 Reset Passkey
+                  </button>
+                </div>
               </div>
             </div>
 

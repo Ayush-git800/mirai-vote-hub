@@ -17,6 +17,7 @@ import {
   serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { authenticateAdmin } from "./admin.js";
+import { getCurrentElectionId } from "./voting.js";
 
 // Session State
 export const state = {
@@ -39,6 +40,17 @@ const tabAdminBtn = document.getElementById("tabAdminBtn");
 const alertBanner = document.getElementById("alertBanner");
 const alertMessage = document.getElementById("alertMessage");
 const alertDismiss = document.getElementById("alertDismiss");
+
+// Dynamic Two-Step Auth Elements
+let currentActiveElectionId = "section-a";
+let pendingRollNumber = "";
+let pendingWhitelistData = null;
+
+window.addEventListener("electionSelected", (e) => {
+  if (e.detail && e.detail.id) {
+    currentActiveElectionId = e.detail.id;
+  }
+});
 
 let alertTimer = null;
 
@@ -178,88 +190,210 @@ export async function updateElectionCardsEligibility(studentId) {
   }
 }
 
-// Account Claiming & Student Authentication
-export async function claimStudentBallot(rollNo, passkey) {
-  const normalizedRoll = rollNo.trim().toUpperCase();
-  const spinner = document.getElementById("claimSpinner");
-  const claimBtn = document.getElementById("claimBallotBtn");
-  
+// Reset Dynamic Two-Step Auth View back to Step 1
+export function resetAuthFlow() {
+  pendingRollNumber = "";
+  pendingWhitelistData = null;
+
+  const authCardTitle = document.getElementById("authCardTitle");
+  const authCardSubtitle = document.getElementById("authCardSubtitle");
+  const studentRollForm = document.getElementById("studentRollForm");
+  const createPasskeyForm = document.getElementById("createPasskeyForm");
+  const verifyPasskeyForm = document.getElementById("verifyPasskeyForm");
+
+  if (studentRollForm) studentRollForm.classList.remove("hidden");
+  if (createPasskeyForm) createPasskeyForm.classList.add("hidden");
+  if (verifyPasskeyForm) verifyPasskeyForm.classList.add("hidden");
+
+  if (authCardTitle) authCardTitle.textContent = "Student Identity Verification";
+  if (authCardSubtitle) authCardSubtitle.textContent = "Enter your official university Roll Number or Student ID to access your digital ballot.";
+
+  const studentRollInput = document.getElementById("studentRollInput");
+  const newPassInput = document.getElementById("newPassInput");
+  const confirmPassInput = document.getElementById("confirmPassInput");
+  const studentPassInput = document.getElementById("studentPassInput");
+
+  if (studentRollInput) studentRollInput.value = "";
+  if (newPassInput) newPassInput.value = "";
+  if (confirmPassInput) confirmPassInput.value = "";
+  if (studentPassInput) studentPassInput.value = "";
+}
+
+// STEP 1: Verify Whitelist & Determine Case A (New) vs Case B (Returning)
+export async function verifyStudentRoll(rollNo) {
+  const normalizedRoll = (rollNo || "").trim().toUpperCase();
+  const checkRollBtn = document.getElementById("checkRollBtn");
+  const checkRollSpinner = document.getElementById("checkRollSpinner");
+
   if (!normalizedRoll) {
     showAlert("Please enter a valid Roll Number.", "error");
     return false;
   }
 
-  if (!passkey) {
-    showAlert("Please enter a security passkey / PIN.", "error");
-    return false;
-  }
-
   try {
-    if (spinner) spinner.classList.remove("hidden");
-    if (claimBtn) claimBtn.disabled = true;
+    if (checkRollSpinner) checkRollSpinner.classList.remove("hidden");
+    if (checkRollBtn) checkRollBtn.disabled = true;
 
-    // 1. Ensure Firebase anonymous session for decoupled communication
+    // 1. Ensure Firebase anonymous session for communication
     if (!auth.currentUser) {
       await signInAnonymously(auth);
     }
 
-    const hashedInput = await hashPasskey(passkey);
+    const targetElectionId = currentActiveElectionId || (typeof getCurrentElectionId === "function" ? getCurrentElectionId() : "section-a");
 
-    // 2. Query users collection: users/{studentId}
-    const userRef = doc(db, "users", normalizedRoll);
-    const userSnap = await getDoc(userRef);
+    // 2. Check Whitelist First: Verify elections/{electionId}/whitelist/{studentId} exists
+    let wlData = null;
+    const electionWlRef = doc(db, "elections", targetElectionId, "whitelist", normalizedRoll);
+    const electionWlSnap = await getDoc(electionWlRef);
 
-    let isNewRegistration = false;
-
-    if (!userSnap.exists() || !userSnap.data().isRegistered) {
-      // First-time claiming: Set passkey, hash it, and flag isRegistered: true
-      isNewRegistration = true;
-      await setDoc(userRef, {
-        rollNo: normalizedRoll,
-        passkeyHash: hashedInput,
-        isRegistered: true,
-        claimedAt: serverTimestamp(),
-        lastLoginAt: serverTimestamp()
-      }, { merge: true });
-
-      showAlert(`Account claimed! Passkey registered for ${normalizedRoll}.`, "success");
+    if (electionWlSnap.exists()) {
+      wlData = electionWlSnap.data();
     } else {
-      // Existing registered student: verify credentials
-      const userData = userSnap.data();
-      const storedHash = userData.passkeyHash;
-
-      // Check stored hash or legacy plaintext match
-      if (storedHash && storedHash !== hashedInput) {
-        showAlert("Invalid passkey for this registered Roll Number.", "error");
-        return false;
-      } else if (!storedHash && userData.passkey && userData.passkey !== passkey) {
-        showAlert("Invalid passkey for this registered Roll Number.", "error");
-        return false;
+      // Fallback: check global root whitelist
+      const rootWlRef = doc(db, "whitelist", normalizedRoll);
+      const rootWlSnap = await getDoc(rootWlRef);
+      if (rootWlSnap.exists()) {
+        wlData = rootWlSnap.data();
       }
-
-      // Update last login
-      await updateDoc(userRef, { lastLoginAt: serverTimestamp() }).catch(() => {});
     }
 
-    // 3. Query Whitelist Record for Eligibility and Voter State
-    const rootWhitelistRef = doc(db, "whitelist", normalizedRoll);
-    const rootWhitelistSnap = await getDoc(rootWhitelistRef);
-    const whitelistData = rootWhitelistSnap.exists() ? rootWhitelistSnap.data() : {};
+    if (!wlData) {
+      showAlert("Roll Number not whitelisted for this election.", "error");
+      return false;
+    }
 
-    // 4. Construct Session State
+    if (wlData.hasVoted === true) {
+      showAlert("You have already cast your official ballot in this election.", "error");
+      showAlreadyVoted({ rollNo: normalizedRoll, ...wlData });
+      return false;
+    }
+
+    // Whitelisted & not voted yet!
+    pendingRollNumber = normalizedRoll;
+    pendingWhitelistData = wlData;
+
+    // 3. Check User Credential Record: users/{studentId}
+    const userRef = doc(db, "users", normalizedRoll);
+    const userSnap = await getDoc(userRef);
+    const userData = userSnap.exists() ? userSnap.data() : null;
+    const hasPasskey = Boolean(userData && (userData.passkey || userData.passkeyHash || userData.pin));
+
+    const authCardTitle = document.getElementById("authCardTitle");
+    const authCardSubtitle = document.getElementById("authCardSubtitle");
+    const studentRollForm = document.getElementById("studentRollForm");
+    const createPasskeyForm = document.getElementById("createPasskeyForm");
+    const verifyPasskeyForm = document.getElementById("verifyPasskeyForm");
+
+    if (!hasPasskey) {
+      // Case A — New Student (No passkey saved yet):
+      // Switch cleanly to "Create Your Personal Voting Passkey" mode
+      if (studentRollForm) studentRollForm.classList.add("hidden");
+      if (verifyPasskeyForm) verifyPasskeyForm.classList.add("hidden");
+      if (createPasskeyForm) createPasskeyForm.classList.remove("hidden");
+
+      if (authCardTitle) authCardTitle.textContent = "Create Your Personal Voting Passkey";
+      if (authCardSubtitle) authCardSubtitle.textContent = "As a first-time voter, set a secure Passkey or PIN to protect your ballot.";
+
+      const idRollEl = document.getElementById("identifiedRollCreate");
+      if (idRollEl) idRollEl.textContent = normalizedRoll;
+
+      const newPassInput = document.getElementById("newPassInput");
+      const confirmPassInput = document.getElementById("confirmPassInput");
+      if (newPassInput) { newPassInput.value = ""; newPassInput.focus(); }
+      if (confirmPassInput) confirmPassInput.value = "";
+
+      showAlert(`Roll Number '${normalizedRoll}' verified! Please create your personal passkey.`, "success");
+    } else {
+      // Case B — Returning Student (Has saved passkey):
+      // Display "Enter Your Voting Passkey"
+      if (studentRollForm) studentRollForm.classList.add("hidden");
+      if (createPasskeyForm) createPasskeyForm.classList.add("hidden");
+      if (verifyPasskeyForm) verifyPasskeyForm.classList.remove("hidden");
+
+      if (authCardTitle) authCardTitle.textContent = "Enter Your Voting Passkey";
+      if (authCardSubtitle) authCardSubtitle.textContent = "Enter your secret passkey / PIN to unlock the official ballot booth.";
+
+      const idRollEl = document.getElementById("identifiedRollVerify");
+      if (idRollEl) idRollEl.textContent = normalizedRoll;
+
+      const studentPassInput = document.getElementById("studentPassInput");
+      if (studentPassInput) { studentPassInput.value = ""; studentPassInput.focus(); }
+    }
+
+    return true;
+
+  } catch (err) {
+    console.error("Student roll verification error:", err);
+    showAlert(`Verification failed: ${err.message}`, "error");
+    return false;
+  } finally {
+    if (checkRollSpinner) checkRollSpinner.classList.add("hidden");
+    if (checkRollBtn) checkRollBtn.disabled = false;
+  }
+}
+
+// STEP 2A: Create Passkey / PIN for New Student
+export async function createStudentPasskey(newPass, confirmPass) {
+  const roll = pendingRollNumber;
+  if (!roll) {
+    showAlert("Session expired. Please enter your Roll Number again.", "error");
+    resetAuthFlow();
+    return false;
+  }
+
+  const pass = (newPass || "").trim();
+  const confirm = (confirmPass || "").trim();
+
+  if (pass.length < 4) {
+    showAlert("Passkey must be at least 4 characters.", "error");
+    return false;
+  }
+
+  if (pass !== confirm) {
+    showAlert("Passkeys do not match. Please re-enter.", "error");
+    return false;
+  }
+
+  const setPasskeyBtn = document.getElementById("setPasskeyBtn");
+  const setPasskeySpinner = document.getElementById("setPasskeySpinner");
+
+  try {
+    if (setPasskeySpinner) setPasskeySpinner.classList.remove("hidden");
+    if (setPasskeyBtn) setPasskeyBtn.disabled = true;
+
+    if (!auth.currentUser) {
+      await signInAnonymously(auth);
+    }
+
+    const hashedInput = await hashPasskey(pass);
+    const userRef = doc(db, "users", roll);
+
+    // Save passkey credential record
+    await setDoc(userRef, {
+      rollNo: roll,
+      passkey: pass,
+      passkeyHash: hashedInput,
+      isRegistered: true,
+      createdAt: Date.now(),
+      lastLoginAt: serverTimestamp()
+    }, { merge: true });
+
+    const wlData = pendingWhitelistData || {};
+
+    // Establish student session
     state.studentData = {
-      rollNo: normalizedRoll,
-      name: whitelistData.name || `Student ${normalizedRoll}`,
-      section: whitelistData.section || "Section A",
-      hasVoted: whitelistData.hasVoted === true,
-      votedAt: whitelistData.votedAt || null,
-      receiptHash: whitelistData.receiptHash || null,
+      rollNo: roll,
+      name: wlData.name || `Student ${roll}`,
+      section: wlData.section || "Section A",
+      hasVoted: false,
+      votedAt: null,
+      receiptHash: null,
       isRegistered: true
     };
     state.role = "student";
     state.isAdmin = false;
 
-    // 5. Persist Session via localStorage
+    // Persist session
     localStorage.setItem("mirai_vote_session", JSON.stringify({
       rollNo: state.studentData.rollNo,
       name: state.studentData.name,
@@ -268,30 +402,124 @@ export async function claimStudentBallot(rollNo, passkey) {
       timestamp: Date.now()
     }));
 
-    // 6. Update UI & Eligibility across election cards
     updateNavForRole();
-    await updateElectionCardsEligibility(normalizedRoll);
+    await updateElectionCardsEligibility(roll);
+    unlockBallotUI(state.studentData);
+    showAlert(`Passkey created successfully! Welcome to the voting booth, ${state.studentData.name}.`, "success");
+    return true;
 
-    // If already voted, present the sealed cryptographic confirmation view
+  } catch (err) {
+    console.error("Create passkey error:", err);
+    showAlert(`Failed to set passkey: ${err.message}`, "error");
+    return false;
+  } finally {
+    if (setPasskeySpinner) setPasskeySpinner.classList.add("hidden");
+    if (setPasskeyBtn) setPasskeyBtn.disabled = false;
+  }
+}
+
+// STEP 2B: Verify Passkey for Returning Student
+export async function verifyStudentPasskey(passkey) {
+  const roll = pendingRollNumber;
+  if (!roll) {
+    showAlert("Session expired. Please enter your Roll Number again.", "error");
+    resetAuthFlow();
+    return false;
+  }
+
+  const pass = (passkey || "").trim();
+  if (!pass) {
+    showAlert("Please enter your security passkey / PIN.", "error");
+    return false;
+  }
+
+  const claimSpinner = document.getElementById("claimSpinner");
+  const claimBtn = document.getElementById("claimBallotBtn");
+
+  try {
+    if (claimSpinner) claimSpinner.classList.remove("hidden");
+    if (claimBtn) claimBtn.disabled = true;
+
+    if (!auth.currentUser) {
+      await signInAnonymously(auth);
+    }
+
+    const userRef = doc(db, "users", roll);
+    const userSnap = await getDoc(userRef);
+
+    if (!userSnap.exists()) {
+      showAlert("User record not found. Please re-enter your Roll Number.", "error");
+      resetAuthFlow();
+      return false;
+    }
+
+    const userData = userSnap.data();
+    const hashedInput = await hashPasskey(pass);
+
+    const isMatch = (userData.passkeyHash && userData.passkeyHash === hashedInput) ||
+                    (userData.passkey && userData.passkey === pass) ||
+                    (userData.pin && userData.pin === pass);
+
+    if (!isMatch) {
+      showAlert("Invalid passkey for this Roll Number. Contact Election Admin to reset.", "error");
+      return false;
+    }
+
+    // Update last login
+    await updateDoc(userRef, { lastLoginAt: serverTimestamp() }).catch(() => {});
+
+    const wlData = pendingWhitelistData || {};
+
+    state.studentData = {
+      rollNo: roll,
+      name: wlData.name || `Student ${roll}`,
+      section: wlData.section || "Section A",
+      hasVoted: wlData.hasVoted === true,
+      votedAt: wlData.votedAt || null,
+      receiptHash: wlData.receiptHash || null,
+      isRegistered: true
+    };
+    state.role = "student";
+    state.isAdmin = false;
+
+    localStorage.setItem("mirai_vote_session", JSON.stringify({
+      rollNo: state.studentData.rollNo,
+      name: state.studentData.name,
+      section: state.studentData.section,
+      role: "student",
+      timestamp: Date.now()
+    }));
+
+    updateNavForRole();
+    await updateElectionCardsEligibility(roll);
+
     if (state.studentData.hasVoted) {
       showAlreadyVoted(state.studentData);
     } else {
       unlockBallotUI(state.studentData);
-      if (!isNewRegistration) {
-        showAlert(`Welcome back, ${state.studentData.name}! Credentials verified.`, "success");
-      }
+      showAlert(`Welcome back, ${state.studentData.name}! Credentials verified.`, "success");
     }
 
     return true;
 
-  } catch (error) {
-    console.error("Ballot claim / login error:", error);
-    showAlert(`Authentication failed: ${error.message}`, "error");
+  } catch (err) {
+    console.error("Passkey verification error:", err);
+    showAlert(`Authentication failed: ${err.message}`, "error");
     return false;
   } finally {
-    if (spinner) spinner.classList.add("hidden");
+    if (claimSpinner) claimSpinner.classList.add("hidden");
     if (claimBtn) claimBtn.disabled = false;
   }
+}
+
+// Backward-compatible entrypoint
+export async function claimStudentBallot(rollNo, passkey) {
+  const ok = await verifyStudentRoll(rollNo);
+  if (!ok) return false;
+  if (passkey) {
+    return await verifyStudentPasskey(passkey);
+  }
+  return true;
 }
 
 // Sign out handler
@@ -303,6 +531,8 @@ export async function performLogout() {
   state.role = null;
   state.studentData = null;
   state.isAdmin = false;
+
+  resetAuthFlow();
 
   // Reset UI
   document.getElementById("electionListView")?.classList.remove("hidden");
@@ -422,12 +652,52 @@ export async function initSession() {
 document.addEventListener("DOMContentLoaded", () => {
   initSession();
 
+  // Step 1: Roll Number Entry Form
+  const rollForm = document.getElementById("studentRollForm");
+  if (rollForm) {
+    rollForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const roll = document.getElementById("studentRollInput")?.value;
+      verifyStudentRoll(roll);
+    });
+  }
+
+  // Step 2A: Create Passkey Form (New Student)
+  const createForm = document.getElementById("createPasskeyForm");
+  if (createForm) {
+    createForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const newPass = document.getElementById("newPassInput")?.value;
+      const confirmPass = document.getElementById("confirmPassInput")?.value;
+      createStudentPasskey(newPass, confirmPass);
+    });
+  }
+
+  // Step 2B: Verify Passkey Form (Returning Student)
+  const verifyForm = document.getElementById("verifyPasskeyForm");
+  if (verifyForm) {
+    verifyForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const pass = document.getElementById("studentPassInput")?.value;
+      verifyStudentPasskey(pass);
+    });
+  }
+
+  // Change Roll Number buttons
+  document.querySelectorAll(".btn-change-roll").forEach(btn => {
+    btn.addEventListener("click", () => {
+      resetAuthFlow();
+      document.getElementById("studentRollInput")?.focus();
+    });
+  });
+
+  // Legacy student claim form support if present
   const claimForm = document.getElementById("studentClaimForm");
   if (claimForm) {
     claimForm.addEventListener("submit", (e) => {
       e.preventDefault();
-      const roll = document.getElementById("studentRollInput").value;
-      const pass = document.getElementById("studentPassInput").value;
+      const roll = document.getElementById("studentRollInput")?.value;
+      const pass = document.getElementById("studentPassInput")?.value;
       claimStudentBallot(roll, pass);
     });
   }

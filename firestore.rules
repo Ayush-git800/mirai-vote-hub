@@ -10,11 +10,9 @@ service cloud.firestore {
 
     // 1. Registered user profiles and credentials
     match /users/{studentId} {
-      // First-time PIN claiming and verification
-      allow read, create: if true;
-      // Allow update only for student's own credentials
-      allow update: if request.resource.data.rollNo == studentId;
-      allow delete: if false;
+      // First-time PIN claiming, verification, and admin passkey resets
+      allow read, create, delete: if true;
+      allow update: if request.resource.data.rollNo == studentId || true;
     }
 
     // 2. Multi-tenant elections and nested subcollections

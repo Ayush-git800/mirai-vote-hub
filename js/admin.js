@@ -950,6 +950,7 @@ export async function lookupVoter(rollNo, targetElectionId = "") {
 
   const resultContainer = document.getElementById("voterLookupResult");
   const emergencyResetBtn = document.getElementById("emergencyResetVoterBtn");
+  const adminResetPasskeyBtn = document.getElementById("adminResetPasskeyBtn");
   if (!resultContainer) return;
 
   resultContainer.classList.remove("hidden");
@@ -991,7 +992,23 @@ export async function lookupVoter(rollNo, targetElectionId = "") {
         </p>
       `;
       if (emergencyResetBtn) emergencyResetBtn.classList.add("hidden");
+      if (adminResetPasskeyBtn) adminResetPasskeyBtn.classList.add("hidden");
       return;
+    }
+
+    // Check passkey credential status
+    let passkeyStatusHtml = "";
+    try {
+      const userSnap = await getDoc(doc(db, "users", cleanRoll));
+      const udata = userSnap.exists() ? userSnap.data() : null;
+      const hasPasskey = Boolean(udata && (udata.passkey || udata.passkeyHash || udata.pin));
+      passkeyStatusHtml = `<div>Passkey Credential: <strong style="color:${hasPasskey ? 'var(--neon-emerald)' : 'var(--neon-amber)'};">${hasPasskey ? 'Active / Configured' : 'Not Set (New Voter Onboarding)'}</strong></div>`;
+      if (adminResetPasskeyBtn) {
+        adminResetPasskeyBtn.classList.remove("hidden");
+        adminResetPasskeyBtn.textContent = hasPasskey ? "🔑 Reset Passkey" : "🔑 Reset Passkey Record";
+      }
+    } catch (e) {
+      if (adminResetPasskeyBtn) adminResetPasskeyBtn.classList.remove("hidden");
     }
 
     const hasVoted = voterData.hasVoted === true;
@@ -1003,6 +1020,7 @@ export async function lookupVoter(rollNo, targetElectionId = "") {
           <div>Student Name: <strong style="color:var(--text-primary);">${voterData.name || 'Certified Voter'}</strong></div>
           <div>Roll Number: <span class="mono" style="color:var(--neon-cyan); font-weight:700;">${voterData.rollNo || cleanRoll}</span></div>
           <div>Cohort / Election: <span style="color:var(--text-primary);">${foundElectionTitle || voterData.section || 'General'}</span></div>
+          ${passkeyStatusHtml}
           <div style="color: var(--neon-cyan); margin-top: 0.25rem;">● Certified eligible. Official ballot has not yet been cast.</div>
         </div>
       `;
@@ -1016,6 +1034,7 @@ export async function lookupVoter(rollNo, targetElectionId = "") {
           <div>Student Name: <strong style="color:var(--text-primary);">${voterData.name || 'Certified Voter'}</strong></div>
           <div>Roll Number: <span class="mono" style="color:var(--neon-emerald); font-weight:700;">${voterData.rollNo || cleanRoll}</span></div>
           <div>Cohort / Election: <span style="color:var(--text-primary);">${foundElectionTitle || voterData.section || 'General'}</span></div>
+          ${passkeyStatusHtml}
           <div>Ballot Receipt: <span class="mono highlight-cyan" style="word-break: break-all;">${receiptToken}</span></div>
           <div>Timestamp: <span>${votedTime}</span></div>
         </div>
@@ -1026,7 +1045,39 @@ export async function lookupVoter(rollNo, targetElectionId = "") {
     console.error("Voter lookup failure:", err);
     resultContainer.innerHTML = `<div class="error-msg">Lookup error: ${err.message}</div>`;
     if (emergencyResetBtn) emergencyResetBtn.classList.add("hidden");
+    if (adminResetPasskeyBtn) adminResetPasskeyBtn.classList.add("hidden");
   }
+}
+
+export async function resetStudentPasskey(rollNo = currentLookedUpRoll) {
+  const cleanRoll = (rollNo || currentLookedUpRoll || "").trim().toUpperCase();
+  if (!cleanRoll) return;
+
+  const confirmed = confirm(
+    `Reset voting passkey for Student ID: ${cleanRoll}?\n\nThis will clear their existing passkey so they will be prompted to create a fresh personal passkey when they next enter the voting booth.`
+  );
+  if (!confirmed) return;
+
+  try {
+    const userRef = doc(db, "users", cleanRoll);
+    await setDoc(userRef, {
+      rollNo: cleanRoll,
+      passkey: null,
+      passkeyHash: null,
+      pin: null,
+      isRegistered: false,
+      resetAt: serverTimestamp()
+    }, { merge: true });
+
+    await deleteDoc(userRef).catch(() => {});
+
+    showAlert(`Passkey reset confirmed for Roll Number ${cleanRoll}. Student will now be prompted to create a fresh passkey on login.`, "success");
+    lookupVoter(cleanRoll, currentLookedUpElectionId);
+  } catch (err) {
+    console.error("Passkey reset error:", err);
+    showAlert(`Passkey reset failed: ${err.message}`, "error");
+  }
+}
 }
 
 export async function emergencyResetVoter(rollNo = currentLookedUpRoll, electionId = currentLookedUpElectionId) {
@@ -1526,6 +1577,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const voterLookupInput = document.getElementById("voterLookupInput");
   const voterLookupElectionSelect = document.getElementById("voterLookupElectionSelect");
   const emergencyResetVoterBtn = document.getElementById("emergencyResetVoterBtn");
+  const adminResetPasskeyBtn = document.getElementById("adminResetPasskeyBtn");
 
   if (voterLookupBtn && voterLookupInput) {
     voterLookupBtn.addEventListener("click", () => {
@@ -1544,6 +1596,12 @@ document.addEventListener("DOMContentLoaded", () => {
   if (emergencyResetVoterBtn) {
     emergencyResetVoterBtn.addEventListener("click", () => {
       emergencyResetVoter();
+    });
+  }
+
+  if (adminResetPasskeyBtn) {
+    adminResetPasskeyBtn.addEventListener("click", () => {
+      resetStudentPasskey();
     });
   }
 
