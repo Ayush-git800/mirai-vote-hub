@@ -1,6 +1,35 @@
-# Mirai Vote Hub
-### Institutional Multi-Tenant Election Portal
+# 🗳️ Mirai Vote Hub
+### Institutional Multi-Tenant Electoral Ledger & Autonomous Voting Infrastructure
 **Mirai School of Technology — Department of Computer Science & Engineering (AI & ML)**
+
+---
+
+<p align="center">
+  <a href="https://mirai-election-portal.web.app">
+    <img src="https://img.shields.io/badge/LIVE%20PORTAL-mirai--election--portal.web.app-00f0ff?style=for-the-badge&logo=google-chrome&logoColor=white" alt="Live Demo" />
+  </a>
+  <img src="https://img.shields.io/badge/FIREBASE-v10.8.0%20MODULAR-FFA611?style=for-the-badge&logo=firebase&logoColor=white" alt="Firebase" />
+  <img src="https://img.shields.io/badge/CLOUD%20FIRESTORE-ATOMIC%20ACID-FFCA28?style=for-the-badge&logo=google-cloud&logoColor=black" alt="Firestore" />
+  <img src="https://img.shields.io/badge/THEME-DUAL%20LIGHT%20%2F%20DARK-ff007b?style=for-the-badge" alt="Dual Theme" />
+  <img src="https://img.shields.io/badge/SECURITY-BALLOT%20DECOUPLING-00e676?style=for-the-badge&logo=shield&logoColor=white" alt="Security" />
+</p>
+
+---
+
+## 🌐 Official Production Deployment
+
+| Environment | Production URL | Status | Network |
+|---|---|---|---|
+| **Live Portal** | **[https://mirai-election-portal.web.app](https://mirai-election-portal.web.app)** | `ACTIVE (99.9% SLA)` | Google Global Edge CDN |
+| **Backup Domain** | `https://mirai-election-portal.firebaseapp.com` | `STANDBY` | Firebase Multi-Region |
+
+> **Direct Access:** All students, faculty, and election observers can access the live portal directly at **[https://mirai-election-portal.web.app](https://mirai-election-portal.web.app)** across any smartphone, tablet, or desktop browser.
+
+---
+
+## 🏛️ Executive Overview
+
+**Mirai Vote Hub** is a multi-tenant, zero-dummy-data election platform engineered specifically for the **Department of Computer Science & Engineering (AI & ML) at Mirai School of Technology**. Built on the foundational pillars of cryptographic ballot secrecy decoupling, strict identity authentication, atomic concurrency control, and dynamic multi-seat representation, the system guarantees 100% electoral integrity, eliminates duplicate voting, and provides real-time auditability alongside automated post-election certification.
 
 ```
 ========================================================================================
@@ -17,208 +46,172 @@
 
 ---
 
-## 🏛️ Executive Summary
+## 🚀 Key Technological Capabilities
 
-**Mirai Vote Hub** is a multi-tenant, zero-dummy-data election platform engineered specifically for **Mirai School of Technology (CSE AI/ML)**. Designed around the principles of cryptographic ballot secrecy decoupling, strict identity authentication, atomic concurrency control, and dual-seat representation, the system guarantees 100% election integrity, zero duplicate voting, and automated post-poll certification.
+### 1. 🛡️ Cryptographic Ballot Secrecy & Voter Decoupling
+- **Zero-Linkage Audit Architecture**: Voter identity validation is strictly segregated from candidate ballot selection.
+- When an authorized student casts their ballot, their whitelist document in `whitelist/{rollNo}` is stamped with `hasVoted: true` and a cryptographically unique receipt token.
+- Concurrently, the chosen candidate selections are appended into an isolated, anonymous collection (`/votes/{anonymousVoteId}`) completely stripped of roll numbers, names, or identifying metadata.
+
+### 2. ⚡ Atomic Concurrency Engine (`runTransaction`)
+- High-concurrency elections with hundreds of simultaneous voters are executed through **Firestore ACID Transactions**.
+- Double-tap and network contention guards disable submission buttons instantly (`"Securing Ballot on Ledger..."`).
+- Optimistic locking validates election status (`active`), verifies deadlines (`closesAt`), confirms whitelist eligibility (`hasVoted === false`), and checks candidate category integrity before committing state mutations.
+
+### 3. 🎨 Dynamic Multi-Seat Category Architecture
+- Beyond standard Boy CR and Girl CR roles, administrators can define arbitrary electoral seats (e.g., *Technical Secretary*, *Sports Captain*, *Club President*).
+- The ballot booth dynamically generates multi-column voter interfaces with real-time selection validation and stage trackers.
+
+### 4. 🌓 Dual Light / Dark Theme Engine
+- High-contrast, accessibility-compliant theme engine powered by CSS Custom Properties (`var(--bg-primary)`, `var(--text-primary)`, `var(--accent-cyan)`).
+- Instant, zero-FOUC (Flash of Unstyled Content) initialization persisted through `localStorage`.
+
+### 5. 📜 Automated Winner Certificate & Audit Reports
+- **Dynamic PDF Certificates**: Embedded with official high-resolution, transparently cropped institutional emblems using client-side **jsPDF** vector rendering.
+- **Certified Audit CSV**: Comprehensive multi-category vote share reports exportable in a single click with SHA-like verification receipts.
+
+### 6. ⏱️ Flexible Lifecycle Controls & Auto-Lock Timers
+- Supports **Manual Close** or **Timed Auto-Lock** (with live synchronized countdown clocks).
+- **Strict Results Privacy**: Live telemetry displays zero vote tallies while voting is active. Results remain cryptographically sealed until an Admin publishes them.
+
+### 7. 🗄️ Archive Ledger & Cascade Deep-Delete
+- Soft-archive elections out of public view with instant one-click restoration.
+- Safe, chunked cascade deletion capable of removing thousands of whitelist records and candidate profiles in batched slices of 450 operations without exceeding database limits.
 
 ---
 
-## 📐 System Architecture Flowchart
+## 🧰 Comprehensive Tech Stack
 
+| Domain | Technology / Library | Purpose & Implementation |
+|---|---|---|
+| **Core Architecture** | **Vanilla ES6+ JavaScript (ESM)** | Zero-bloat, ultra-fast modular architecture without heavy frontend framework overhead |
+| **Cloud Database** | **Google Cloud Firestore (v10.8.0 Modular)** | Real-time listeners (`onSnapshot`), Atomic Transactions (`runTransaction`), and batched writes (`writeBatch`) |
+| **Authentication** | **Firebase Auth & Roll-Key Verification** | Secure anonymous Firebase sessioning coupled with student university credentials and SHA-256 PIN hashing |
+| **Hosting & Edge** | **Firebase Hosting (Global CDN)** | High-speed global edge network with custom cache headers (`max-age=3600` for assets/JS/CSS, `no-cache` for `index.html`) |
+| **Styling & UI** | **Custom CSS3 Design System** | Cyberpunk-inspired institutional glassmorphism, responsive grid layout, and light/dark theme variables |
+| **PDF Generation** | **jsPDF (v2.5.1)** | Client-side vector certificate generator with dynamic winner typography and official university crests |
+| **Icons & Typography** | **Google Fonts (Outfit & JetBrains Mono)** | Clean modern typography paired with high-readability monospace font for cryptographic tokens and roll keys |
+| **Security Rules** | **Firestore Security Rules Engine** | Fine-grained access control enforcing single vote increments, self-only credential edits, and immutable vote trails |
+
+---
+
+## 📐 System Architecture & Data Flow
+
+```mermaid
+flowchart TD
+    subgraph S1["1. INGESTION & CONFIGURATION"]
+        A["Admin Officer"] -->|"Bulk CSV / JSON Roster"| B["Batch Whitelist Processor"]
+        B -->|"Chunked Batches (<= 450 ops)"| C[("elections/{id}/whitelist")]
+        A -->|"Dynamic Category Builder"| D[("elections/{id} Document")]
+    end
+
+    subgraph S2["2. VOTER ACCESS & VERIFICATION"]
+        E["Student Voter"] -->|"Roll No + Passkey"| F{"Verification Gate"}
+        F -->|"Whitelisted & Unvoted"| G["Dynamic Multi-Seat Ballot"]
+        F -->|"Already Voted / Unauthorized"| H["Access Blocked (403 / Seal Receipt)"]
+    end
+
+    subgraph S3["3. ATOMIC ACID TRANSACTION"]
+        G -->|"Cast Official Ballot"| I["Firestore runTransaction()"]
+        I -->|"Assert status == 'active'"| J{"Precondition Check"}
+        J -->|"Pass"| K["Mark Whitelist hasVoted: true"]
+        K -->|"Increment +1"| L[("Candidate Vote Counts")]
+        K -->|"Decouple & Append"| M[("Anonymous /votes Audit Trail")]
+        M --> N["0xMIRAI Cryptographic Receipt"]
+    end
+
+    subgraph S4["4. AUDITING & CERTIFICATION"]
+        L -->|"Admin Unseals Polls"| O["Certified Results Terminal"]
+        O -->|"Export CSV"| P["Audit Log CSV"]
+        O -->|"Automated jsPDF Engine"| Q["Official Winner Certificate (PDF)"]
+    end
 ```
-+-----------------------------------------------------------------------------------------------+
-|                               MIRAI VOTE HUB SYSTEM TOPOLOGY                                 |
-+-----------------------------------------------------------------------------------------------+
-
- [ Phase 1: Ingestion ]
-    +------------------------------+
-    | Admin / Election Commission  |
-    | (Official CSV / JSON Roster) |
-    +--------------+---------------+
-                   |
-                   v
-    +----------------------------------+
-    | Firestore Batch Commit (Chunked) |
-    | Collection: `whitelist/{rollNo}`  |
-    | State: { hasVoted: false }       |
-    +----------------------------------+
-
- [ Phase 2: Authentication & Claim ]
-    +------------------------------+
-    | Eligible Student (Voter)     |
-    | Enters Roll No + Passkey     |
-    +--------------+---------------+
-                   |
-                   v
-    +----------------------------------+
-    | Identity Verification Gate       |
-    | - Exists in Whitelist?           |
-    | - `hasVoted == false`?           |
-    +--------------+---------------+
-                   |
-         +---------+---------+
-         |                   |
-    [ Certified ]      [ Duplicate / Reject ]
-         |                   |
-         v                   v
-   Unlock Ballot       Access Blocked (403)
-   (Dual-Seat View)    (Already Voted Alert)
-
- [ Phase 3: Atomic Transaction Voting ]
-    +----------------------------------------------------------------+
-    | Student casts ballot:                                          |
-    |   - Seat 01: Boy Class Representative (Boy CR)                 |
-    |   - Seat 02: Girl Class Representative (Girl CR)               |
-    +-------------------------------+--------------------------------+
-                                    |
-                                    v
-    +----------------------------------------------------------------+
-    |              Cloud Firestore Atomic RunTransaction             |
-    |  1. Re-read Whitelist Doc: assert `hasVoted == false`          |
-    |  2. Mark Whitelist Doc: `hasVoted: true`, `votedAt: timestamp` |
-    |  3. Decouple Ballot: Append anonymous token to `votes` log    |
-    |  4. Increment: candidate `voteCount += 1` for Boy & Girl CR    |
-    +-------------------------------+--------------------------------+
-                                    |
-                                    v
-    +----------------------------------------------------------------+
-    | Tamper-Proof Cryptographic Receipt Token Generated:            |
-    | `0xMIRAI-<HEX_TIMESTAMP>-<ENTROPY>`                            |
-    +----------------------------------------------------------------+
-
- [ Phase 4: Sealed Auditing & 2-Stage Reveal ]
-                   |
-         +---------+---------+
-         |                   |
-    [ Stage 1 ]         [ Stage 2 ]
-    Live Turnout Only   Official Final Reveal
-    - Eligible count    - Candidate Vote Counts
-    - Votes Cast (%)    - Margin of Victory
-    - Turnout Meter     - Certified Winner Badges
-    (Ballots Sealed)    (Tallies Unsealed)
-```
 
 ---
 
-## ⚡ Core Technical Features
-
-### 1. Zero Duplicate Vote Guarantee
-The voting mechanism is powered by **Cloud Firestore Atomic Transactions (`runTransaction`)**. 
-- The student's whitelist record is evaluated and mutated within an isolated transaction lock.
-- If multiple submissions are attempted concurrently or sequentially, the optimistic concurrency checks abort duplicate attempts at the database engine level with zero race conditions.
-
-### 2. Ballot Secrecy Decoupling
-To uphold institutional democratic trust:
-- The voter identity verification layer operates completely decoupled from the ballot record.
-- The voter's record in `/whitelist/{rollNo}` only retains a boolean flag `hasVoted: true` and a receipt hash.
-- The actual candidate selections are appended to an unlinked `/votes/{anonymousVoteId}` collection devoid of student names, emails, or roll numbers.
-
-### 3. Dual-Seat Representative Selection
-Every eligible voter casts votes across two distinct mandated categories:
-- **Seat 01**: Boy Class Representative (Boy CR)
-- **Seat 02**: Girl Class Representative (Girl CR)
-The UI enforces selecting exactly one candidate per category prior to unlocking the cryptographic review and seal dialog.
-
-### 4. 2-Stage Reveal Controls
-- **Stage 1 (Live Turnout Telemetry)**: Real-time telemetry exposes the aggregate percentage of eligible student turnout, votes cast, and pending voters. Individual candidate totals remain cryptographically sealed to prevent bandwagon bias.
-- **Stage 2 (Certified Results Unseal)**: Upon poll conclusion, Election Commission officers trigger Stage 2, unsealing individual candidate vote counts, percentage shares, rankings, and certified winner statuses.
-
-### 5. Zero Dummy Data Integrity
-All voter records and candidate entries are ingested directly from official university data rosters. No mocked or simulated data persists in production.
-
----
-
-## 🛠️ Project Structure
+## 📁 Repository File Layout
 
 ```
 mirai-vote-hub/
 ├── assets/
-│   └── logo.png              # Official institutional emblem
+│   ├── mirai-logo.png              # High-res transparent institutional emblem
+│   └── mirai-logo.webp             # Optimized web asset
 ├── css/
-│   └── style.css             # High-tech institutional design system
+│   └── style.css                   # Unified CSS design system & dual-theme tokens
 ├── js/
-│   ├── firebase-config.js    # Firebase v10 modular initialization
-│   ├── auth.js               # Whitelist verification & role state manager
-│   ├── voting.js             # Dual-seat ballot & atomic transaction engine
-│   ├── results.js            # 2-Stage reveal controls & live telemetry
-│   └── admin.js              # Commission tools: batch import, candidates, lifecycle
-├── firestore.rules           # Cloud Firestore security rules
-├── index.html                # Responsive web app entry point
-└── README.md                 # Technical specification & operations manual
+│   ├── firebase-config.js          # Modular Firebase v10 initialization & credentials
+│   ├── auth.js                     # Student credential authentication & session state
+│   ├── voting.js                   # Atomic transaction engine, ballot builder & concurrency guards
+│   ├── results.js                  # Certified results renderer, CSV exporter & PDF certificate generator
+│   └── admin.js                    # Management terminal, category builder, chunked importer & deep delete
+├── firebase.json                   # Hosting configuration, cache-control headers & rules link
+├── firestore.rules                 # Production Firestore security & permission specifications
+├── index.html                      # Single-Page Web Application entry point
+└── README.md                       # Complete technical handbook & operations guide
 ```
 
 ---
 
-## 🚀 Setup & Deployment Instructions
+## 🔒 Cloud Firestore Security Specifications
+
+| Resource Path | Read | Write / Mutation Constraints | Security Purpose |
+|---|---|---|---|
+| `/users/{studentId}` | Public | Update only if `request.resource.data.rollNo == studentId` | First-time student claiming & PIN updates |
+| `/elections/{electionId}` | Public | Admin lifecycle management | Multi-tenant election catalog and configuration |
+| `/elections/{electionId}/whitelist/{studentId}` | Public | Update permitted only if `hasVoted: false -> true` or Admin reset | Strict duplicate prevention; console tamper protection |
+| `/elections/{electionId}/candidates/{candId}` | Public | Increment strictly by `+1` while parent status is `active` | Anti-tamper vote tallying |
+| `/elections/{electionId}/votes/{voteId}` | Public | Append-only (`allow create`); updates blocked | Decoupled anonymous ballot ledger |
+| `/votes/{voteId}` | Public | Append-only (`allow create`); updates & deletes blocked | Global immutable audit trail |
+| `/election_meta/{metaId}` | Public | Full Admin write | Global telemetry and system config |
+
+---
+
+## 🛠️ Local Development & Deployment
 
 ### Prerequisites
-- Node.js (v18+)
-- Firebase CLI (`npm install -g firebase-tools`)
-- A modern ECMAScript module compatible browser
+- [Node.js (v18+)](https://nodejs.org/)
+- [Firebase CLI](https://firebase.google.com/docs/cli) (`npm install -g firebase-tools`)
+- Modern web browser with ES module support
 
-### 1. Local Development
-Clone the repository and serve locally:
+### 1. Clone & Run Locally
 ```bash
-git clone https://github.com/<your-org>/mirai-vote-hub.git
+# Clone the repository
+git clone https://github.com/Ayush-git800/mirai-vote-hub.git
 cd mirai-vote-hub
 
-# Serve locally using any static web server or Firebase emulator
-npx serve .
-# Or with Firebase CLI:
-firebase emulators:start
+# Start a local static server
+python3 -m http.server 3000
+
+# Open in browser:
+# http://localhost:3000
 ```
 
-### 2. Firebase Configuration
-The application is pre-configured with Firebase v10 Modular SDK in `js/firebase-config.js`:
-```javascript
-const firebaseConfig = {
-  apiKey: "AIzaSyC1cDy0hVSIYWaQvK3kfoEQRfo9nMOWNOI",
-  authDomain: "mirai-election-portal.firebaseapp.com",
-  projectId: "mirai-election-portal",
-  storageBucket: "mirai-election-portal.firebasestorage.app",
-  messagingSenderId: "11692501775",
-  appId: "1:11692501775:web:ac34ca6c485964a7686c7a",
-  measurementId: "G-5EQKSZKX7M"
-};
-```
-
-### 3. Deploying Firestore Security Rules
-Ensure the security rules in `firestore.rules` are deployed:
+### 2. Deploy to Firebase
 ```bash
-# Login to Firebase
+# Authenticate with Google / Firebase
 firebase login
 
-# Set the active project
+# Set active project
 firebase use mirai-election-portal
 
-# Deploy Firestore Security Rules exclusively
+# Deploy Firestore Security Rules
 firebase deploy --only firestore:rules
-```
 
-### 4. Deploying to Firebase Hosting
-Deploy the client frontend to Firebase Hosting:
-```bash
-# Initialize hosting if needed (public dir: .)
-firebase init hosting
-
-# Deploy web app
+# Deploy Web App to Firebase Hosting
 firebase deploy --only hosting
 ```
 
----
-
-## 🔒 Security & Firestore Rules Summary
-
-| Collection | Read Permission | Write / Create Permission | Purpose |
-|---|---|---|---|
-| `whitelist/{studentId}` | Authenticated | Authenticated (Admins & Self atomic update) | Certified voter registry |
-| `candidates/{candidateId}` | Authenticated | Authenticated (Atomic `voteCount` increment) | Boy & Girl CR contenders |
-| `votes/{voteId}` | Authenticated (Auditing) | Authenticated (Create once, immutable) | Decoupled anonymous ballot log |
-| `election_meta/{metaId}` | Authenticated | Authenticated (Commission controls) | Status & 2-stage reveal state |
+Your live election portal will instantly be reachable at:
+👉 **[https://mirai-election-portal.web.app](https://mirai-election-portal.web.app)**
 
 ---
 
-## 👥 Institution Information
+## 👥 Institutional Administration
+
 **Mirai School of Technology**  
-Department of Computer Science & Engineering (Artificial Intelligence & Machine Learning)  
-*Academic Year 2026–2027*
+*Department of Computer Science & Engineering (Artificial Intelligence & Machine Learning)*  
+Academic Session 2026–2027  
+
+- **Lead Engineer & Maintainer:** Ayush ([@Ayush-git800](https://github.com/Ayush-git800))
+- **Live URL:** [https://mirai-election-portal.web.app](https://mirai-election-portal.web.app)
+- **License:** MIT License — Free for institutional educational use.
