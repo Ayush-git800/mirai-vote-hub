@@ -1078,7 +1078,6 @@ export async function resetStudentPasskey(rollNo = currentLookedUpRoll) {
     showAlert(`Passkey reset failed: ${err.message}`, "error");
   }
 }
-}
 
 export async function emergencyResetVoter(rollNo = currentLookedUpRoll, electionId = currentLookedUpElectionId) {
   const cleanRoll = (rollNo || currentLookedUpRoll || "").trim().toUpperCase();
